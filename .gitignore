@@ -13,3 +13,6 @@ reports/
 # Release binaries: rebuilt by the publish/release tools and already live on Cloudflare
 worker/public/app/*.exe
 worker/public/packages/**/*.zip
+
+# Claude Code session files
+.claude/scheduled_tasks.lock
