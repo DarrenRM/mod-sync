@@ -92,6 +92,18 @@ pub fn find_app(steam_root: &Path, app_id: u32) -> Option<AppInstall> {
     })
 }
 
+/// Best guess at whether an account on this PC owns the app. Steam keeps no
+/// readable list of owned games, but it caches library art for every game shown
+/// in the library (`appcache/librarycache/<appid>`), installed or not. Viewing a
+/// store page does not add an entry.
+pub fn likely_owned(steam_root: &Path, app_id: u32) -> bool {
+    let dir = steam_root
+        .join("appcache")
+        .join("librarycache")
+        .join(app_id.to_string());
+    fs::read_dir(dir).map(|mut d| d.next().is_some()).unwrap_or(false)
+}
+
 /// The fields of an `appmanifest_<id>.acf` we care about.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppManifest {
@@ -375,5 +387,17 @@ mod tests {
         assert!(vdf::parse("\"a\" }").is_none());
         assert!(vdf::parse("\"unterminated").is_none());
         assert!(parse_library_folders("garbage {").is_empty());
+    }
+
+    #[test]
+    fn ownership_from_library_cache() {
+        let root = std::env::temp_dir().join(format!("modsync-owned-{}", std::process::id()));
+        let cache = root.join("appcache").join("librarycache");
+        fs::create_dir_all(cache.join("100").join("abc123")).unwrap();
+        fs::create_dir_all(cache.join("200")).unwrap(); // empty folder: not owned
+        assert!(likely_owned(&root, 100));
+        assert!(!likely_owned(&root, 200));
+        assert!(!likely_owned(&root, 300));
+        let _ = fs::remove_dir_all(&root);
     }
 }

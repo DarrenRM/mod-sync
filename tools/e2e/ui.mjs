@@ -90,7 +90,11 @@ try {
   await waitText("VEIN", 30_000);
   await new Promise((r) => setTimeout(r, 1200));
   await shot("1-library");
-  check((await text()).includes("install"), "library offers Install");
+  check(
+    await page.evaluate(() => [...document.querySelectorAll(".row button.btn")].some((b) => b.textContent.trim() === "Sync")),
+    "library offers Sync",
+  );
+  check((await text()).includes("not synced"), "library says Not synced");
 
   await page.click(".row");
   await waitText("Adds");
@@ -99,21 +103,21 @@ try {
   const t = await text();
   check(t.includes("shared crafting") && t.includes("ue4ss"), "detail lists the mods that will be added");
 
-  await clickText("button.btn", "Install");
+  await clickText("button.btn", "Sync");
   await new Promise((r) => setTimeout(r, 350));
-  await shot("3-installing");
+  await shot("3-syncing");
   await clickText("button.btn", "Play");
   await new Promise((r) => setTimeout(r, 600));
   await shot("4-installed");
   check(existsSync(join(win64, "ue4ss/UE4SS.dll")), "files on disk after Install");
-  check((await text()).includes("up to date"), "shows Up to date");
+  check((await text()).includes("in sync"), "shows In sync");
 
-  await clickText("button.link", "Uninstall");
+  await clickText("button.link", "Uninstall mods");
   await new Promise((r) => setTimeout(r, 400));
   await shot("5-confirm-uninstall");
   await clickText("button.link", "Remove");
   await page.waitForFunction(
-    () => [...document.querySelectorAll("button.btn")].some((b) => b.textContent.trim() === "Install" && !b.disabled),
+    () => [...document.querySelectorAll("button.btn")].some((b) => b.textContent.trim() === "Sync" && !b.disabled),
     { timeout: 60_000 },
   );
   await new Promise((r) => setTimeout(r, 600));

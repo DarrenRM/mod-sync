@@ -18,6 +18,7 @@ const s: AppState = {
       name: "VEIN",
       steamAppId: 1857950,
       game: "installed",
+      owned: true,
       path: "F:\\SteamLibrary\\steamapps\\common\\Vein",
       running: false,
       mods: "outdated",
@@ -39,6 +40,7 @@ const s: AppState = {
       name: "Abiotic Factor",
       steamAppId: 427410,
       game: "missing",
+      owned: false,
       path: null,
       running: false,
       mods: "none",
@@ -78,7 +80,7 @@ export const mock: Api = {
     const g = game(id);
     g.mods = "current";
     g.installedVersion = g.latest.version;
-    toastCbs.forEach((cb) => cb(`${g.name} mods ${g.latest.version} installed`));
+    toastCbs.forEach((cb) => cb(`${g.name} synced  ·  ${g.latest.version}`));
     return clone();
   },
   async uninstall(id) {

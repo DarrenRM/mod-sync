@@ -37,13 +37,9 @@ async fn get_state(core: CoreState<'_>, refresh: bool) -> Result<AppStateView, S
 
 #[tauri::command]
 async fn install(core: CoreState<'_>, id: String) -> Result<AppStateView, String> {
-    let before = core.load_record(&id).map(|r| r.version);
     let version = core.install(&id).await?;
     let name = core.view().games.into_iter().find(|g| g.id == id).map(|g| g.name).unwrap_or(id);
-    core.toast(match before {
-        Some(_) => format!("{name} updated to {version}"),
-        None => format!("{name} mods installed"),
-    });
+    core.toast(format!("{name} synced  ·  {version}"));
     Ok(core.view())
 }
 
@@ -64,12 +60,32 @@ async fn play(app: AppHandle, core: CoreState<'_>, id: String) -> Result<(), Str
 #[tauri::command]
 async fn get_on_steam(app: AppHandle, core: CoreState<'_>, id: String) -> Result<(), String> {
     let appid = core.steam_app_id(&id)?;
-    let url = if modsync_engine::steam::steam_root().is_some() {
-        format!("steam://install/{appid}")
-    } else {
-        format!("https://store.steampowered.com/app/{appid}")
-    };
+    let url = steam_link(modsync_engine::steam::steam_root().is_some(), core.owns(appid), appid);
+    util::log(format!("get on steam {id}: {url}"));
     app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+}
+
+/// Owners get Steam's install dialog. Everyone else gets the store page, in the Steam
+/// client when there is one (`steam://install` on an unowned game only shows an error).
+fn steam_link(has_steam: bool, owned: bool, appid: u32) -> String {
+    match (has_steam, owned) {
+        (true, true) => format!("steam://install/{appid}"),
+        (true, false) => format!("steam://store/{appid}"),
+        (false, _) => format!("https://store.steampowered.com/app/{appid}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::steam_link;
+
+    #[test]
+    fn steam_link_by_ownership() {
+        assert_eq!(steam_link(true, true, 1857950), "steam://install/1857950");
+        assert_eq!(steam_link(true, false, 1857950), "steam://store/1857950");
+        assert_eq!(steam_link(false, false, 1857950), "https://store.steampowered.com/app/1857950");
+        assert_eq!(steam_link(false, true, 1857950), "https://store.steampowered.com/app/1857950");
+    }
 }
 
 #[tauri::command]
@@ -123,7 +139,7 @@ fn spawn_sync_loop(app: AppHandle, core: Arc<Core>) {
             core.refresh_catalog().await;
             let updated = core.auto_update().await;
             if !updated.is_empty() {
-                core.toast(format!("Updated {}", updated.join(", ")));
+                core.toast(format!("Synced {}", updated.join(", ")));
             }
             let _ = app.emit("state", core.view());
             core.scan_crashes().await;

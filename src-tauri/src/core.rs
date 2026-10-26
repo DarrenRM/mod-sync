@@ -52,6 +52,8 @@ pub struct GameView {
     pub name: String,
     pub steam_app_id: u32,
     pub game: &'static str,
+    /// Only meaningful when `game` is "missing": decides Install vs Get on Steam.
+    pub owned: bool,
     pub path: Option<String>,
     pub running: bool,
     pub mods: &'static str,
@@ -186,6 +188,10 @@ impl Core {
         }
     }
 
+    pub fn owns(&self, app_id: u32) -> bool {
+        engine::steam::steam_root().is_some_and(|root| engine::steam::likely_owned(&root, app_id))
+    }
+
     fn game_root(&self, g: &GameEntry) -> Result<PathBuf, String> {
         match self.detect(g) {
             Detected::Installed(p) => Ok(p),
@@ -232,6 +238,7 @@ impl Core {
                 name: g.name.clone(),
                 steam_app_id: g.steam_app_id,
                 game,
+                owned: game != "missing" || self.owns(g.steam_app_id),
                 path,
                 running: self.running(g),
                 mods,

@@ -11,13 +11,13 @@
     const updates = games.filter((g) => g.game === "installed" && (g.mods === "outdated" || g.mods === "broken")).length;
     if (!store.state) return "";
     if (store.state.needsAppUpdate) return "App update required";
-    if (updates) return updates === 1 ? "1 update" : `${updates} updates`;
-    if (games.some((g) => g.mods === "current")) return "Up to date";
+    if (updates) return updates === 1 ? "1 game out of sync" : `${updates} games out of sync`;
+    if (games.some((g) => g.mods === "current")) return "All in sync";
     return `${games.length} ${games.length === 1 ? "game" : "games"}`;
   });
 
   const tone = $derived(
-    store.state?.needsAppUpdate || summary.includes("update") ? "new" : summary === "Up to date" ? "ok" : "dim",
+    store.state?.needsAppUpdate || summary.endsWith("out of sync") ? "new" : summary === "All in sync" ? "ok" : "dim",
   );
 </script>
 

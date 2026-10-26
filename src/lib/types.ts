@@ -14,6 +14,8 @@ export type GameView = {
   steamAppId: number;
   /** missing: not found on this PC · updating: Steam is mid-update · installed */
   game: "installed" | "missing" | "updating";
+  /** Owns it on Steam (best guess). Picks "Install on Steam" vs "Get on Steam" when missing. */
+  owned: boolean;
   path: string | null;
   running: boolean;
   /** none · current · outdated · broken (files missing) */

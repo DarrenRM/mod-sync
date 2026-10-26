@@ -81,16 +81,16 @@ export type Action =
 /** The one obvious next step for a game. */
 export function primaryAction(g: GameView, needsAppUpdate: boolean): Action {
   if (needsAppUpdate) return { kind: "app", label: "Update app" };
-  if (g.game === "missing") return { kind: "steam", label: "Get on Steam" };
+  if (g.game === "missing") return { kind: "steam", label: g.owned ? "Install on Steam" : "Get on Steam" };
   if (g.game === "updating") return { kind: "none", label: "Steam is updating", disabled: true };
   if (g.running && g.mods !== "current") return { kind: "none", label: `Close ${g.name} first`, disabled: true };
   switch (g.mods) {
     case "none":
-      return { kind: "install", label: "Install" };
+      return { kind: "install", label: "Sync" };
     case "outdated":
-      return { kind: "update", label: "Update" };
+      return { kind: "update", label: "Sync" };
     case "broken":
-      return { kind: "repair", label: "Repair" };
+      return { kind: "repair", label: "Sync" };
     default:
       return g.running ? { kind: "none", label: "Running", disabled: true } : { kind: "play", label: "Play" };
   }
@@ -101,28 +101,28 @@ export function statusLine(g: GameView): { text: string; tone: "ok" | "new" | "w
   if (g.game === "updating") return { text: "Steam is updating", tone: "dim" };
   switch (g.mods) {
     case "none":
-      return { text: "Vanilla", tone: "dim" };
+      return { text: "Not synced", tone: "dim" };
     case "outdated":
-      return { text: `${g.installedVersion} → ${g.latest.version}`, tone: "new" };
+      return { text: "Out of sync", tone: "new" };
     case "broken":
       return { text: "Files missing", tone: "warn" };
     default:
-      return { text: g.running ? "Running" : "Up to date", tone: "ok" };
+      return { text: g.running ? "Running" : "In sync", tone: "ok" };
   }
 }
 
 /** Fuller wording for the big header on a game page. */
 export function heroStatus(g: GameView): { text: string; tone: "ok" | "new" | "warn" | "dim" } {
   const st = statusLine(g);
-  if (g.game === "installed" && g.mods === "outdated") return { text: `Update ready  ·  ${st.text}`, tone: "new" };
-  if (g.game === "installed" && g.mods === "none") return { text: "No mods installed", tone: "dim" };
+  if (g.game === "installed" && g.mods === "outdated")
+    return { text: `${st.text}  ·  ${g.installedVersion} → ${g.latest.version}`, tone: "new" };
   if (g.game === "installed" && g.mods === "current") return { text: `${st.text}  ·  ${g.installedVersion}`, tone: "ok" };
   return st;
 }
 
 export function progressLabel(p: Progress): string {
   const pct = p.total ? Math.round((p.done / p.total) * 100) : null;
-  const verb = p.phase === "download" ? "Downloading" : p.phase === "install" ? "Installing" : "Removing";
+  const verb = p.phase === "download" ? "Downloading" : p.phase === "install" ? "Syncing" : "Removing";
   return pct === null || p.phase !== "download" ? verb : `${verb} ${pct}%`;
 }
 
