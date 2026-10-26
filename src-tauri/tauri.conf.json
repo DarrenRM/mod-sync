@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Mod Sync",
+  "version": "../package.json",
+  "identifier": "com.modsync.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Mod Sync",
+        "width": 1040,
+        "height": 680,
+        "minWidth": 860,
+        "minHeight": 600,
+        "center": true,
+        "decorations": false,
+        "shadow": true,
+        "visible": false,
+        "backgroundColor": "#05080e"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: asset:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
+    "publisher": "Mod Sync",
+    "shortDescription": "Mod Sync",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVDMjhBQkNCQTA0QTVFRjUKUldUMVhrcWd5NnNvN0VheGFEd1R5a1NGd2wrb1YrbTBxQUtkbXV5bUl6b29mTENaQ3BlL2VIcEoK",
+      "endpoints": ["https://mod-sync.example.invalid/app/latest.json"],
+      "windows": { "installMode": "passive" }
+    }
+  }
+}

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mod Sync</title>
+    <link rel="icon" href="/icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;560&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #05080e;
+        --cream: #f6f1d9;
+        --text-2: rgba(240, 236, 220, 0.62);
+        --ink: #06223f;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: var(--bg); color: var(--cream); font-family: Geist, system-ui, sans-serif; }
+      main { position: relative; min-height: 100%; display: flex; flex-direction: column; justify-content: flex-end; padding: 48px clamp(16px, 6vw, 80px) clamp(40px, 10vh, 96px); overflow: hidden; }
+      .sky { position: absolute; inset: -4%; background: url(/sky.webp) 30% 40% / cover; animation: drift 70s ease-in-out infinite alternate; }
+      .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(5,8,14,.1), rgba(5,8,14,.35) 45%, var(--bg) 96%), linear-gradient(90deg, rgba(5,8,14,.5), transparent 60%); }
+      @keyframes drift { to { transform: translate3d(-4%, -2%, 0) scale(1.06); } }
+      .content { position: relative; }
+      h1 { margin: 0; font-family: "Instrument Serif", serif; font-weight: 400; font-size: clamp(56px, 11vw, 148px); line-height: .9; letter-spacing: -.025em; }
+      h1 em { color: rgba(246, 241, 217, .6); }
+      .row { display: flex; flex-wrap: wrap; align-items: center; gap: 20px 28px; margin-top: 36px; }
+      a.dl { display: inline-grid; place-items: center; height: 52px; padding: 0 30px; border-radius: 999px; background: var(--cream); color: var(--ink); text-decoration: none; font-weight: 560; font-size: 15px; box-shadow: 0 10px 30px -10px rgba(246,241,217,.5); transition: transform .25s cubic-bezier(.22,1,.36,1); }
+      a.dl:hover { transform: translateY(-1px); }
+      .meta { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+      @media (prefers-reduced-motion: reduce) { .sky { animation: none; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="sky"></div>
+      <div class="shade"></div>
+      <div class="content">
+        <h1>Mod <em>Sync</em></h1>
+        <div class="row">
+          <a class="dl" href="/app/ModSync-setup.exe">Download for Windows</a>
+          <span class="meta" id="meta"></span>
+        </div>
+      </div>
+    </main>
+    <script>
+      fetch("/app/latest.json", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((u) => u && (document.getElementById("meta").textContent = "Version " + u.version))
+        .catch(() => {});
+    </script>
+  </body>
+</html>

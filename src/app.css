@@ -1,0 +1,103 @@
+@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource/instrument-serif/400-italic.css";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+:root {
+  /* Pulled from the pixel sky */
+  --bg: #05080e;
+  --bg-raised: #0b111b;
+  --bg-hover: #0f1724;
+  --line: rgba(240, 236, 220, 0.08);
+  --line-strong: rgba(240, 236, 220, 0.16);
+  --text: #f0ecdc;
+  --text-2: rgba(240, 236, 220, 0.64);
+  --text-3: rgba(240, 236, 220, 0.4);
+  --cream: #f6f1d9;
+  --sky: #1e6fc5;
+  --deep: #0a3d7a;
+  --cyan: #8fdcf0;
+  --ink: #06223f;
+  --warn: #ffb48a;
+  --error: #ff8f80;
+
+  --serif: "Instrument Serif", "Times New Roman", serif;
+  --sans: "Geist Variable", "Segoe UI", system-ui, sans-serif;
+  --mono: "Geist Mono Variable", ui-monospace, "Cascadia Mono", monospace;
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --gutter: 48px;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+}
+
+#app {
+  height: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+button:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 560;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 10px;
+  border: 3px solid var(--bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,15 @@
+node_modules/
+dist/
+src-tauri/target/
+crates/*/target/
+target/
+.keys/
+worker/.wrangler/
+worker/node_modules/
+build/
+*.log
+reports/
+
+# Release binaries: rebuilt by the publish/release tools and already live on Cloudflare
+worker/public/app/*.exe
+worker/public/packages/**/*.zip

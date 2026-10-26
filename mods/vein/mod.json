@@ -1,0 +1,28 @@
+{
+  "id": "vein",
+  "name": "VEIN",
+  "steamAppId": 1857950,
+  "target": "Vein/Binaries/Win64",
+  "processNames": ["Vein.exe", "Vein-Win64-Test.exe", "Vein-Win64-Shipping.exe"],
+  "logs": ["{target}/ue4ss/UE4SS.log", "{game}/Vein/Saved/Logs/Vein.log"],
+  "crashGlobs": ["{target}/ue4ss/crash_*.dmp"],
+  "revision": 0,
+  "mods": [
+    { "name": "Shared Crafting", "version": "{modVersion}", "summary": "Craft from your base's storage" },
+    { "name": "UE4SS", "version": "3.0.1", "summary": "Script loader" }
+  ],
+  "notes": [
+    "Water from bottles, tanks, taps and the ground",
+    "Recipes you can't make are dimmed",
+    "Tooltips show where ingredients come from"
+  ],
+  "preserve": ["ue4ss/Mods/mods.txt", "**/config_local.lua"],
+  "ownedDirs": ["ue4ss"],
+  "edits": [
+    { "type": "line", "file": "ue4ss/Mods/mods.txt", "key": "SharedCraftingClient", "line": "SharedCraftingClient : 1", "before": "Keybinds" }
+  ],
+  "source": {
+    "repo": "../vein-mods",
+    "ue4ssZip": "../vein-mods/downloads/zDEV-UE4SS_v3.0.1-970-gbdef46ff.zip"
+  }
+}
