@@ -123,6 +123,12 @@ async fn set_settings(app: AppHandle, core: CoreState<'_>, settings: PublicSetti
     Ok(core.view())
 }
 
+#[tauri::command]
+async fn welcome_done(core: CoreState<'_>) -> Result<AppStateView, String> {
+    core.mark_welcomed()?;
+    Ok(core.view())
+}
+
 fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
@@ -241,7 +247,8 @@ pub fn run() {
             open_folder,
             send_report,
             get_art,
-            set_settings
+            set_settings,
+            welcome_done
         ])
         .run(tauri::generate_context!())
         .expect("error while running Mod Sync");

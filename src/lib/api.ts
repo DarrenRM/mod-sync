@@ -16,6 +16,7 @@ export interface Api {
   report(id: string | null, note: string): Promise<void>;
   art(id: string): Promise<Art>;
   setSettings(s: Settings): Promise<AppState>;
+  welcomeDone(): Promise<AppState>;
   onProgress(cb: (p: Progress) => void): Promise<Unlisten>;
   onState(cb: (s: AppState) => void): Promise<Unlisten>;
   onToast(cb: (text: string) => void): Promise<Unlisten>;
@@ -42,6 +43,7 @@ async function tauriApi(): Promise<Api> {
     report: (id, note) => invoke("send_report", { id, note }),
     art: (id) => invoke("get_art", { id }),
     setSettings: (settings) => invoke("set_settings", { settings }),
+    welcomeDone: () => invoke("welcome_done"),
     onProgress: (cb) => listen<Progress>("progress", (e) => cb(e.payload)),
     onState: (cb) => listen<AppState>("state", (e) => cb(e.payload)),
     onToast: (cb) => listen<string>("toast", (e) => cb(e.payload)),

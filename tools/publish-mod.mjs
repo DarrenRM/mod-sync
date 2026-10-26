@@ -29,7 +29,7 @@ rmSync(work, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
 
 const { build } = await import(pathToFileURL(join(modDir, "build.mjs")).href);
-const { modVersion } = await build({ mod, stage, work });
+const { modVersion, versions } = await build({ mod, stage, work });
 const version = mod.revision > 0 ? `${modVersion}-r${mod.revision}` : modVersion;
 
 // Deterministic zip: sorted entries, fixed timestamps, so the same files give the same hash.
@@ -86,7 +86,12 @@ for (const [kind, name, file] of [["hero", "library_hero.jpg", "hero.jpg"], ["lo
   art[kind] = `${rel}?v=${createHash("sha256").update(bytes).digest("hex").slice(0, 8)}`;
 }
 
-const subst = (s) => s.replaceAll("{modVersion}", modVersion);
+// {modVersion}, and {version:<Product>} when build.mjs returns `versions` (VEIN: one per product).
+const subst = (s) =>
+  s.replaceAll("{modVersion}", modVersion).replace(/\{version:([^}]+)\}/g, (_, name) => {
+    if (!versions?.[name]) throw new Error(`mod.json uses {version:${name}}, but build.mjs returned no version for it`);
+    return versions[name];
+  });
 const entry = {
   id: mod.id,
   name: mod.name,

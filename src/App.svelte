@@ -21,7 +21,7 @@
     }, 6 * 3600 * 1000);
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (store.sheet) store.sheet = null;
+      if (store.sheet) store.closeSheet();
       else if (store.view.name === "game") store.view = { name: "library" };
     };
     window.addEventListener("keydown", onKey);
@@ -53,7 +53,7 @@
     {/if}
   </section>
 
-  <Sheet open={store.sheet !== null} onclose={() => (store.sheet = null)}>
+  <Sheet open={store.sheet !== null} onclose={() => store.closeSheet()}>
     {#if store.sheet === "settings"}
       <Settings />
     {:else if store.sheet}

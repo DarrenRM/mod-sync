@@ -21,6 +21,21 @@ class Store {
     this.api.onState((s) => (this.state = s));
     this.api.onToast((t) => this.toast(t));
     await this.refresh(true);
+    if (this.state?.firstRun) {
+      this.welcome = true;
+      this.sheet = "settings";
+    }
+  }
+
+  /** First launch: Settings is open with a Done button until the sheet is closed once. */
+  welcome = $state(false);
+
+  closeSheet() {
+    this.sheet = null;
+    if (this.welcome) {
+      this.welcome = false;
+      this.api.welcomeDone().then((s) => (this.state = s), (e) => this.toast(String(e), "error"));
+    }
   }
 
   async refresh(remote = false) {

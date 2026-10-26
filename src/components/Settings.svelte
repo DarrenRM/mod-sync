@@ -38,6 +38,9 @@
 
   <div class="spacer"></div>
 
+  {#if store.welcome}
+    <button class="done" onclick={() => store.closeSheet()}>Done</button>
+  {:else}
   <div class="about">
     <div>
       <p class="label">Version</p>
@@ -51,6 +54,7 @@
       </button>
     {/if}
   </div>
+  {/if}
 {/if}
 
 <style>
@@ -82,6 +86,19 @@
   .about .mono {
     margin-top: 6px;
     color: var(--text-2);
+  }
+
+  .done {
+    height: 50px;
+    border-radius: 999px;
+    background: var(--cream);
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 600;
+    transition: filter 0.2s;
+  }
+  .done:hover {
+    filter: brightness(1.05);
   }
 
   .btn {

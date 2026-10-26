@@ -51,6 +51,10 @@ async function buttonLabel(data, port) {
       page = (await browser.pages()).find((p) => !p.url().startsWith("devtools"));
       if (!page) await new Promise((r) => setTimeout(r, 250));
     }
+    // Fresh data dir, so the first-launch Settings sheet is open: close it.
+    const done = await page.waitForFunction(() => [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Done"), { timeout: 30_000 });
+    await done.asElement().click();
+    await new Promise((r) => setTimeout(r, 700));
     await page.waitForFunction(() => document.querySelector(".row button.btn"), { timeout: 30_000 });
     await page.click(".row");
     await page.waitForFunction(() => document.body.innerText.toLowerCase().includes("adds"), { timeout: 30_000 });

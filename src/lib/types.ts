@@ -34,6 +34,8 @@ export type AppState = {
   appVersion: string;
   offline: boolean;
   needsAppUpdate: boolean;
+  /** Settings haven't been shown yet: open them once on launch. */
+  firstRun: boolean;
   settings: Settings;
   games: GameView[];
 };

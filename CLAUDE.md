@@ -19,7 +19,7 @@ Windows app (Tauri v2 + Svelte 5) that installs, updates and fully uninstalls ga
 
 ## Ship a mod update (e.g. VEIN)
 
-1. Bump the mod version in the mod repo (VEIN: `..\vein-mods\src\lua\vein_core\version.lua`). For a packaging-only change, bump `revision` in `mods/vein/mod.json` instead.
+1. Bump the mod version in the mod repo. VEIN ships every client mod in the repo's `VeinMods` client bundle (`tools/release/Build-VeinModPackages.ps1`, products in `tools/release/products.psd1`). The package version follows SharedCrafting (`..\vein-mods\src\lua\vein_core\version.lua`). When only another product changed (e.g. QuickMove's `local VERSION` in its `main.lua`), or only the packaging, bump `revision` in `mods/vein/mod.json` instead. A new client mod needs its `mods.txt` edit in `mod.json` (the build checks) and a line in `layer/ue4ss/Mods/mods.txt`.
 2. Update `notes` in `mods/vein/mod.json` (short lines, what players will notice).
 3. `npm run publish:mod -- vein` then `npm run deploy`.
 

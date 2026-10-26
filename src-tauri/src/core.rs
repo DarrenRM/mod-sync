@@ -67,6 +67,8 @@ pub struct AppStateView {
     pub app_version: String,
     pub offline: bool,
     pub needs_app_update: bool,
+    /// Show Settings once, so people choose Start with Windows and crash logs themselves.
+    pub first_run: bool,
     pub settings: PublicSettings,
     pub games: Vec<GameView>,
 }
@@ -246,11 +248,17 @@ impl Core {
                 latest,
             });
         }
+        // One lock: a second `lock()` in the same expression would wait on the first forever.
+        let (settings, first_run) = {
+            let s = self.settings.lock().unwrap();
+            (s.public(), !s.welcomed)
+        };
         AppStateView {
             app_version: self.app_version.clone(),
             offline: self.offline.load(Ordering::Relaxed),
             needs_app_update: self.needs_app_update(),
-            settings: self.settings.lock().unwrap().public(),
+            first_run,
+            settings,
             games,
         }
     }
@@ -470,6 +478,12 @@ impl Core {
         cur.auto_update = s.auto_update;
         cur.background = s.background;
         cur.share_logs = s.share_logs;
+        cur.save(&self.paths.settings())
+    }
+
+    pub fn mark_welcomed(&self) -> Result<(), String> {
+        let mut cur = self.settings.lock().unwrap();
+        cur.welcomed = true;
         cur.save(&self.paths.settings())
     }
 

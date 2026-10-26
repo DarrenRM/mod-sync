@@ -25,16 +25,20 @@
 
       {#if g.game === "missing"}
         <button class="link" onclick={() => store.act(id, (api) => api.locate(id))}>Locate folder</button>
-      {:else if hasMods && !busy}
-        {#if confirming}
-          <div class="confirm" in:fly={{ x: -8, duration: 300 }}>
-            <span>Remove all mods?</span>
-            <button class="link danger" onclick={uninstall} disabled={g.running}>Remove</button>
-            <button class="link" onclick={() => (confirming = false)}>Cancel</button>
-          </div>
-        {:else}
+      {:else if confirming && hasMods && !busy}
+        <div class="confirm" in:fly={{ x: -8, duration: 300 }}>
+          <span>Remove all mods?</span>
+          <button class="link danger" onclick={uninstall} disabled={g.running}>Remove</button>
+          <button class="link" onclick={() => (confirming = false)}>Cancel</button>
+        </div>
+      {:else}
+        {#if hasMods && !busy}
           <button class="link" in:fade={{ duration: 200 }} onclick={() => (confirming = true)}>Uninstall mods</button>
         {/if}
+        {#if g.path}
+          <button class="link" onclick={() => store.api.openFolder(id)}>Open folder</button>
+        {/if}
+        <button class="link" onclick={() => (store.sheet = { report: id })}>Report a problem</button>
       {/if}
     </div>
 
@@ -74,15 +78,7 @@
       {/if}
     </div>
 
-    <footer>
-      <span class="mono dim">{g.latest.version} · {formatSize(g.latest.size)} · {g.latest.released}</span>
-      <div class="foot-links">
-        {#if g.path}
-          <button class="link small" onclick={() => store.api.openFolder(id)}>Open folder</button>
-        {/if}
-        <button class="link small" onclick={() => (store.sheet = { report: id })}>Report a problem</button>
-      </div>
-    </footer>
+    <footer class="mono dim">{g.latest.version} · {formatSize(g.latest.size)} · {g.latest.released}</footer>
   </div>
 {/if}
 
@@ -110,9 +106,6 @@
   .link:hover:not(:disabled) {
     color: var(--text);
     border-color: var(--line-strong);
-  }
-  .link.small {
-    font-size: 12.5px;
   }
   .danger {
     color: var(--error);
@@ -208,14 +201,7 @@
   }
 
   footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
     margin-top: 28px;
     padding-top: 4px;
-  }
-  .foot-links {
-    display: flex;
-    gap: 22px;
   }
 </style>

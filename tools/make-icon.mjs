@@ -1,40 +1,23 @@
-// Draws the pixel-art hut icon (16x16 grid) and writes src-tauri/icons/source.png (1024px).
-// Then run: npx tauri icon src-tauri/icons/source.png
+// App icon: a square cut from the banner (src/assets/sky.webp), the right-hand cloud with some sky
+// and a falling streak, in a rounded tile. Writes src-tauri/icons/source.png (1024px) and the
+// landing page icon (worker/public/icon.png). Then run: npx tauri icon src-tauri/icons/source.png
 import sharp from "sharp";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 
-const art = [
-  "................",
-  "................",
-  ".......CC.......",
-  "......CCCC......",
-  ".....CCCCCC.....",
-  "....CCCCCCCC....",
-  "...CCCCCCCCCC...",
-  "..CCCCCCCCCCCC..",
-  ".kkkkkkkkkkkkkk.",
-  "...YYYYYYYYYY...",
-  ".s.YYYYDDYYYY.s.",
-  "sssYYYYDDYYYYsss",
-  "sSsYYYYDDYYYYsSs",
-  "................",
-  "................",
-  "................",
-];
-const color = { C: "#f6f1d9", k: "#d6cda6", Y: "#8fdcf0", D: "#0a3d7a", s: "#5cc0e0", S: "#3aa3d0" };
-const px = 52;
-const pad = (1024 - 16 * px) / 2;
-let rects = "";
-art.forEach((row, y) =>
-  [...row].forEach((c, x) => {
-    if (color[c]) rects += `<rect x="${pad + x * px}" y="${pad + (y + 1.5) * px}" width="${px}" height="${px}" fill="${color[c]}"/>`;
-  }),
-);
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a7fd4"/><stop offset="1" stop-color="#0b4f9c"/></linearGradient></defs>
-<rect x="32" y="32" width="960" height="960" rx="216" fill="url(#g)"/>
-<g shape-rendering="crispEdges">${rects}</g></svg>`;
+const CROP = { left: 650, top: 420, width: 430, height: 430 };
+const SIZE = 1024;
+const PAD = 32; // transparent margin, so the tile sits like other Windows icons
+const tile = SIZE - PAD * 2;
+
+const art = await sharp("src/assets/sky.webp").extract(CROP).resize(tile, tile, { kernel: "lanczos3" }).png().toBuffer();
+const mask = Buffer.from(`<svg width="${tile}" height="${tile}"><rect width="${tile}" height="${tile}" rx="${Math.round(tile * 0.2)}" fill="#fff"/></svg>`);
+const rounded = await sharp(art).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
+
 mkdirSync("src-tauri/icons", { recursive: true });
-writeFileSync("src-tauri/icons/source.svg", svg);
-await sharp(Buffer.from(svg)).png().toFile("src-tauri/icons/source.png");
-console.log("icon written");
+const icon = await sharp({ create: { width: SIZE, height: SIZE, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+  .composite([{ input: rounded, left: PAD, top: PAD }])
+  .png()
+  .toBuffer();
+await sharp(icon).toFile("src-tauri/icons/source.png");
+await sharp(icon).resize(256, 256, { kernel: "lanczos3" }).toFile("worker/public/icon.png");
+console.log("icon written: src-tauri/icons/source.png, worker/public/icon.png");

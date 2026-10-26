@@ -13,11 +13,20 @@ pub struct Settings {
     pub paths: BTreeMap<String, String>,
     /// Unix seconds of the last crash-dump scan.
     pub last_crash_scan: u64,
+    /// The first-launch Settings sheet has been shown and closed.
+    pub welcomed: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { auto_update: true, background: false, share_logs: true, paths: BTreeMap::new(), last_crash_scan: 0 }
+        Self {
+            auto_update: true,
+            background: false,
+            share_logs: true,
+            paths: BTreeMap::new(),
+            last_crash_scan: 0,
+            welcomed: false,
+        }
     }
 }
 

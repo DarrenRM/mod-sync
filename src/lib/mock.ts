@@ -11,6 +11,8 @@ const s: AppState = {
   appVersion: "0.1.0",
   offline: false,
   needsAppUpdate: false,
+  // Add ?first to the URL to see the first-launch Settings sheet.
+  firstRun: new URLSearchParams(location.search).has("first"),
   settings: { autoUpdate: true, background: false, shareLogs: true },
   games: [
     {
@@ -110,6 +112,10 @@ export const mock: Api = {
   },
   async setSettings(settings) {
     s.settings = settings;
+    return clone();
+  },
+  async welcomeDone() {
+    s.firstRun = false;
     return clone();
   },
   async onProgress(cb) {

@@ -87,6 +87,19 @@ const clickText = async (selector, label) => {
 const waitText = (t, timeout = 120_000) => page.waitForFunction((t) => document.body.innerText.toLowerCase().includes(t.toLowerCase()), { timeout }, t);
 
 try {
+  // First launch: Settings opens once, Start with Windows off, closed with Done.
+  await page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => b.textContent.trim() === "Done"), { timeout: 30_000 });
+  await new Promise((r) => setTimeout(r, 900));
+  await shot("0-first-launch");
+  const toggles = await page.evaluate(() =>
+    [...document.querySelectorAll(".sheet [role=switch], .sheet input[type=checkbox]")].map((t) => t.getAttribute("aria-checked") ?? String(t.checked)),
+  );
+  check(toggles.join(",") === "true,false,true", `first launch opens Settings: on, off, on (${toggles.join(",")})`);
+  await clickText("button", "Done");
+  await new Promise((r) => setTimeout(r, 700));
+  const saved = JSON.parse(readFileSync(join(box, "data/settings.json"), "utf8"));
+  check(saved.welcomed === true && saved.background === false, "Done remembers it, Start with Windows stays off");
+
   await waitText("VEIN", 30_000);
   await new Promise((r) => setTimeout(r, 1200));
   await shot("1-library");
