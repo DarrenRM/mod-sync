@@ -107,6 +107,34 @@ fn owned_dir_created_by_us_is_swept_with_runtime_junk() {
 }
 
 #[test]
+fn user_config_survives_update_and_sweep_of_owned_dir_we_created() {
+    let env = Env::new();
+    seed_game(&env);
+    let preserve = ["ue4ss/Mods/mods.txt", "**/config_local.lua"];
+    let cfg = "ue4ss/Mods/SharedCrafting/Scripts/config_local.lua";
+    let rec = env.apply(&env.stage(V1), &spec("1", &preserve, &["ue4ss"], vec![]), None);
+    assert!(rec.created_dirs.iter().any(|d| d == "ue4ss"));
+
+    // The player adds their own settings next to the mod, and the game writes a log.
+    write(&env.game, cfg, b"return { enabled = true }");
+    write(&env.game, "ue4ss/UE4SS.log", b"log");
+
+    // An update doesn't touch it.
+    let mut v2: Vec<(&str, &[u8])> = V1.to_vec();
+    v2[3] = ("ue4ss/Mods/SharedCrafting/Scripts/main.lua", b"print('v2')");
+    let rec = env.apply(&env.stage(&v2), &spec("2", &preserve, &["ue4ss"], vec![]), Some(&rec));
+    assert_eq!(fs::read(env.game.join(cfg)).unwrap(), b"return { enabled = true }");
+
+    // Uninstall sweeps everything else in ue4ss/ but keeps the config (and its folders).
+    uninstall(&rec, &env.backups).unwrap();
+    assert_eq!(fs::read(env.game.join(cfg)).unwrap(), b"return { enabled = true }");
+    assert!(!env.game.join("ue4ss/UE4SS.log").exists());
+    assert!(!env.game.join("ue4ss/UE4SS.dll").exists());
+    assert!(!env.game.join("ue4ss/Mods/SharedCrafting/Scripts/main.lua").exists());
+    assert_eq!(fs::read(env.game.join("dwmapi.dll")).unwrap(), b"original dwmapi");
+}
+
+#[test]
 fn owned_dir_that_preexisted_keeps_user_files() {
     let env = Env::new();
     seed_game(&env);

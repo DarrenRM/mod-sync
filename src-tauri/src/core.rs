@@ -414,10 +414,15 @@ impl Core {
 
     pub async fn uninstall(&self, id: &str) -> Result<(), String> {
         let _guard = self.claim(id)?;
-        let Some(record) = self.load_record(id) else { return Ok(()) };
+        let Some(mut record) = self.load_record(id) else { return Ok(()) };
         if let Ok(g) = self.entry(id) {
             if self.running(&g) {
                 return Err(format!("Close {} first", g.name));
+            }
+            // Records from app 0.2.0 and older lack the preserve list; take it from the catalog
+            // so the user's own config files survive the sweep.
+            if record.preserve.is_empty() {
+                record.preserve = g.spec().map(|s| s.preserve).unwrap_or_default();
             }
         }
         self.progress(id, "remove", 0, 0);

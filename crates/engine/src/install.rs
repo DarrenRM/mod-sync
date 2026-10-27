@@ -330,6 +330,7 @@ pub fn apply(
                     .iter()
                     .filter_map(|d| normalize_rel(d).ok())
                     .collect(),
+                preserve: spec.preserve.clone(),
             })
         }
         Err(e) => match j.rollback() {
@@ -563,6 +564,35 @@ fn uninstall_file(target: &Path, backup_root: &Path, f: &FileEntry) -> Result<Op
     }
 }
 
+/// Deletes everything under `abs` (= `rel` inside the target) except files whose
+/// target-relative path matches `keep`, then removes the folders left empty.
+fn sweep_except(abs: &Path, rel: &str, keep: &GlobSet) -> io::Result<()> {
+    let mut first_err = None;
+    for entry in fs::read_dir(abs)? {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let child_rel = format!("{rel}/{name}");
+        let path = entry.path();
+        let res = if entry.file_type()?.is_dir() {
+            sweep_except(&path, &child_rel, keep)
+        } else if keep.is_match(child_rel.as_str()) {
+            Ok(())
+        } else {
+            fs::remove_file(&path)
+        };
+        if let Err(e) = res {
+            first_err.get_or_insert(e);
+        }
+    }
+    if let Some(e) = first_err {
+        return Err(e);
+    }
+    match fs::remove_dir(abs) {
+        Err(e) if e.kind() == io::ErrorKind::DirectoryNotEmpty => Ok(()),
+        other => other,
+    }
+}
+
 fn is_under(path_key: &str, dir_key: &str) -> bool {
     path_key.len() > dir_key.len()
         && path_key.starts_with(dir_key)
@@ -606,8 +636,10 @@ pub fn uninstall(record: &InstallRecord, backup_root: &Path) -> Result<(), Unins
         }
     }
 
-    // 3. Owned dirs we created: remove whole (sweeps runtime logs, dumps...).
+    // 3. Owned dirs we created: remove whole (sweeps runtime logs, dumps...), except
+    //    files matching `preserve` (the user's own config), which stay with their folders.
     let created: HashSet<String> = record.created_dirs.iter().map(|d| key(d)).collect();
+    let keep = build_preserve(&record.preserve).unwrap_or_else(|_| GlobSet::empty());
     let mut failed_owned = Vec::new();
     for od in &record.owned_dirs {
         let Ok(rel) = normalize_rel(od) else { continue };
@@ -615,7 +647,12 @@ pub fn uninstall(record: &InstallRecord, backup_root: &Path) -> Result<(), Unins
             continue;
         }
         let abs = join_rel(target, &rel);
-        match fs::remove_dir_all(&abs) {
+        let result = if keep.is_empty() {
+            fs::remove_dir_all(&abs)
+        } else {
+            sweep_except(&abs, &rel, &keep)
+        };
+        match result {
             Err(e) if e.kind() != io::ErrorKind::NotFound => {
                 errors.push(format!("remove {}: {e}", abs.display()));
                 failed_owned.push(key(&rel));

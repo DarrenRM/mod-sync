@@ -44,6 +44,10 @@ pub struct InstallRecord {
     /// Copied from the spec so uninstall knows which created dirs to sweep whole.
     #[serde(default)]
     pub owned_dirs: Vec<String>,
+    /// Copied from the spec so that sweep keeps the user's own config files
+    /// (e.g. `config_local.lua`). Records from older apps don't have it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub preserve: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
