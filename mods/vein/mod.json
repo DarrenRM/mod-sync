@@ -6,17 +6,17 @@
   "processNames": ["Vein.exe", "Vein-Win64-Test.exe", "Vein-Win64-Shipping.exe"],
   "logs": ["{target}/ue4ss/UE4SS.log", "{game}/Vein/Saved/Logs/Vein.log"],
   "crashGlobs": ["{target}/ue4ss/crash_*.dmp"],
-  "revision": 1,
+  "revision": 0,
   "mods": [
-    { "name": "Shared Crafting", "version": "{version:SharedCrafting}", "summary": "Craft from your base's storage" },
+    { "name": "Shared Crafting", "version": "{version:SharedCrafting}", "summary": "Craft, build and repair from your base's storage" },
     { "name": "Quick Move", "version": "{version:QuickMove}", "summary": "Move placed items and full furniture" },
     { "name": "UE4SS", "version": "3.0.1", "summary": "Script loader" }
   ],
   "notes": [
-    "New: Move placed items right away, and move your own benches and crates without emptying them",
-    "Water from bottles, tanks, taps and the ground",
-    "Recipes you can't make are dimmed",
-    "Tooltips show where ingredients come from"
+    "New: the build menu (B) uses materials and tools from your base's storage",
+    "New: repair at a repair bench with materials from your base's storage",
+    "A full bench or backpack no longer stops crafting, building or repairing",
+    "Fixes: no flicker on the stove while cooking, steadier recipe icons"
   ],
   "preserve": ["ue4ss/Mods/mods.txt", "**/config_local.lua"],
   "ownedDirs": ["ue4ss"],
