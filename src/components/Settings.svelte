@@ -31,7 +31,7 @@
   <h2>Settings</h2>
 
   <div class="toggles">
-    <Toggle label="Keep mods updated" checked={s.autoUpdate} onchange={(v) => set("autoUpdate", v)} />
+    <Toggle label="Keep mods in sync" checked={s.autoUpdate} onchange={(v) => set("autoUpdate", v)} />
     <Toggle label="Start with Windows" checked={s.background} onchange={(v) => set("background", v)} />
     <Toggle label="Send crash logs" checked={s.shareLogs} onchange={(v) => set("shareLogs", v)} />
   </div>

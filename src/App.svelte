@@ -15,7 +15,12 @@
   onMount(() => {
     store.init().then(() => checkAppUpdate());
     // Keep "running" and Steam state fresh while the window is open; check for app updates every 6 h.
-    const poll = setInterval(() => document.visibilityState === "visible" && store.refresh(), 5000);
+    // While offline, also retry the server every 30 s so the app recovers by itself.
+    let ticks = 0;
+    const poll = setInterval(() => {
+      ticks++;
+      if (document.visibilityState === "visible") store.refresh(!!store.state?.offline && ticks % 6 === 0);
+    }, 5000);
     const updates = setInterval(async () => {
       if ((await checkAppUpdate()) === "ready" && document.visibilityState === "hidden") installAppUpdate();
     }, 6 * 3600 * 1000);

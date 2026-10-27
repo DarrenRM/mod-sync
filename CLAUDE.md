@@ -42,4 +42,4 @@ Friends' apps pick it up within 30 minutes (or on launch) and update automatical
 
 ## Adding a game
 
-Copy `mods/vein/`, set `steamAppId`, `target` (package root inside the game folder), `processNames`, `logs`, `preserve`, `ownedDirs`, `edits`, write `build.mjs` to stage files relative to `target`, then publish. Use `hideIfMissing: true` for things only some people have (a dedicated server).
+Copy `mods/vein/`, set `steamAppId`, `target` (package root inside the game folder), `processNames`, `logs`, `preserve`, `ownedDirs`, `edits`, write `build.mjs` to stage files relative to `target`, then publish. Use `hideIfMissing: true` for things only some people have (a dedicated server). Mark the loader in `mods` with `"support": true` so the library row lists only the mods players use.

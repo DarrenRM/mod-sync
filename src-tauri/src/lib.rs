@@ -145,7 +145,7 @@ fn spawn_sync_loop(app: AppHandle, core: Arc<Core>) {
             core.refresh_catalog().await;
             let updated = core.auto_update().await;
             if !updated.is_empty() {
-                core.toast(format!("Synced {}", updated.join(", ")));
+                core.toast(updated.join(", "));
             }
             let _ = app.emit("state", core.view());
             core.scan_crashes().await;

@@ -11,7 +11,7 @@
 
   function uninstall() {
     confirming = false;
-    store.act(id, (api) => api.uninstall(id));
+    store.act(id, (api) => api.uninstall(id), "remove");
   }
 </script>
 
@@ -32,7 +32,7 @@
           <button class="link" onclick={() => (confirming = false)}>Cancel</button>
         </div>
       {:else}
-        {#if hasMods && !busy}
+        {#if hasMods && !busy && g.game === "installed"}
           <button class="link" in:fade={{ duration: 200 }} onclick={() => (confirming = true)}>Uninstall mods</button>
         {/if}
         {#if g.path}

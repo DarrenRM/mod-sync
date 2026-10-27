@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Action } from "../lib/store.svelte";
-  import { progressLabel } from "../lib/store.svelte";
+  import { progressLabel, syncPercent } from "../lib/store.svelte";
   import type { Progress } from "../lib/types";
 
   let {
@@ -10,10 +10,13 @@
     onclick,
   }: { action: Action; progress?: Progress; size?: "md" | "lg"; onclick: () => void } = $props();
 
-  const pct = $derived(progress && progress.total ? progress.done / progress.total : null);
+  const pct = $derived(progress ? syncPercent(progress) : null);
+  const label = $derived(progress ? progressLabel(progress) : action.label);
   const quiet = $derived(action.kind === "none" || action.kind === "steam");
 </script>
 
+<!-- While busy: a dark track with cream text, and a cream fill carrying dark text, revealed from the
+     left by clip-path. The two labels line up exactly, so the text changes colour as the fill passes. -->
 <button
   class="btn {size}"
   class:quiet
@@ -24,10 +27,15 @@
     onclick();
   }}
 >
-  {#if progress}
-    <span class="fill" class:indeterminate={pct === null} style:transform={pct === null ? undefined : `scaleX(${pct})`}></span>
+  {#if progress && pct === null}
+    <span class="shimmer"></span>
   {/if}
-  <span class="text">{progress ? progressLabel(progress) : action.label}</span>
+  <span class="text">{label}</span>
+  {#if progress && pct !== null}
+    <span class="fill" style:clip-path={`inset(0 ${(100 - pct * 100).toFixed(2)}% 0 0)`} aria-hidden="true">
+      <span class="text">{label}</span>
+    </span>
+  {/if}
 </button>
 
 <style>
@@ -37,7 +45,7 @@
     flex: none;
     display: inline-grid;
     place-items: center;
-    min-width: 128px;
+    min-width: 140px;
     height: 40px;
     padding: 0 20px;
     border-radius: 999px;
@@ -91,30 +99,39 @@
     box-shadow: 0 0 0 1px var(--line) inset;
   }
 
+  /* Empty track: same pill, dark inside, a thin cream edge. */
   .busy {
-    color: var(--ink);
-    background: rgba(246, 241, 217, 0.22);
-    box-shadow: none;
+    color: var(--cream);
+    background: rgba(246, 241, 217, 0.05);
+    box-shadow: 0 0 0 1px rgba(246, 241, 217, 0.3) inset;
   }
 
   .fill {
     position: absolute;
     inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--ink);
     background: var(--cream);
-    transform-origin: left center;
-    transition: transform 0.35s var(--ease);
+    /* Glides between progress updates instead of stepping. */
+    transition: clip-path 0.6s cubic-bezier(0.22, 1, 0.36, 1);
   }
-  .fill.indeterminate {
-    background: linear-gradient(90deg, rgba(246, 241, 217, 0.15), var(--cream), rgba(246, 241, 217, 0.15));
-    background-size: 200% 100%;
-    animation: sweep 1.4s linear infinite;
+
+  /* No measurable progress (removing mods): a soft sweep behind the label. */
+  .shimmer {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(246, 241, 217, 0.16), transparent);
+    background-size: 50% 100%;
+    background-repeat: no-repeat;
+    animation: sweep 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
   @keyframes sweep {
     from {
-      background-position: 100% 0;
+      background-position: -100% 0;
     }
     to {
-      background-position: -100% 0;
+      background-position: 200% 0;
     }
   }
 
@@ -122,8 +139,5 @@
     position: relative;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
-  }
-  .busy .text {
-    mix-blend-mode: normal;
   }
 </style>

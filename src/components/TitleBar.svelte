@@ -84,7 +84,12 @@
     font-weight: 560;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    padding: 4px 9px;
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    line-height: 1;
+    /* Letter spacing trails the last letter, so trim it off the right to centre the word. */
+    padding: 1px calc(10px - 0.14em) 0 10px;
     border-radius: 999px;
     color: var(--cream);
     background: rgba(5, 8, 14, 0.4);

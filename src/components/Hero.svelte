@@ -1,24 +1,12 @@
 <script lang="ts">
   import { fade, fly } from "svelte/transition";
   import sky from "../assets/sky.webp";
-  import { store, heroStatus } from "../lib/store.svelte";
+  import { store, heroStatus, librarySummary } from "../lib/store.svelte";
 
   const game = $derived(store.view.name === "game" ? store.game(store.view.id) : undefined);
   const art = $derived(game ? store.art[game.id] : undefined);
 
-  const summary = $derived.by(() => {
-    const games = store.state?.games ?? [];
-    const updates = games.filter((g) => g.game === "installed" && (g.mods === "outdated" || g.mods === "broken")).length;
-    if (!store.state) return "";
-    if (store.state.needsAppUpdate) return "App update required";
-    if (updates) return updates === 1 ? "1 game out of sync" : `${updates} games out of sync`;
-    if (games.some((g) => g.mods === "current")) return "All in sync";
-    return `${games.length} ${games.length === 1 ? "game" : "games"}`;
-  });
-
-  const tone = $derived(
-    store.state?.needsAppUpdate || summary.endsWith("out of sync") ? "new" : summary === "All in sync" ? "ok" : "dim",
-  );
+  const summary = $derived(librarySummary(store.state, store.progress));
 </script>
 
 <header class="hero" class:compact={!!game}>
@@ -42,11 +30,11 @@
         {:else}
           <h1>{game.name}</h1>
         {/if}
-        {@const st = heroStatus(game)}
+        {@const st = heroStatus(game, store.progress[game.id])}
         <p class="status {st.tone}"><span class="dot"></span>{st.text}</p>
       {:else}
         <h1>Mod <em>Sync</em></h1>
-        <p class="status {tone}"><span class="dot"></span>{summary}</p>
+        <p class="status {summary.tone}"><span class="dot"></span>{summary.text}</p>
       {/if}
     </div>
   {/key}

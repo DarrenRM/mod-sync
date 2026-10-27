@@ -4,7 +4,7 @@ import type { AppState, GameView, Progress } from "./types";
 
 const veinMods = [
   { name: "Shared Crafting", version: "0.5.0", summary: "Craft from your base's storage" },
-  { name: "UE4SS", version: "3.0.1", summary: "Script loader" },
+  { name: "Mod Loader", version: "3.0.1", summary: "Runs the other mods (UE4SS)", support: true },
 ];
 
 const s: AppState = {
@@ -58,6 +58,31 @@ const s: AppState = {
   ],
 };
 
+// Odd states for checking the wording: ?case=running | broken | updating | appupdate | insync | offline
+{
+  const vein = s.games[0];
+  switch (new URLSearchParams(location.search).get("case")) {
+    case "running":
+      Object.assign(vein, { running: true, mods: "current", installedVersion: vein.latest.version });
+      break;
+    case "broken":
+      vein.mods = "broken";
+      break;
+    case "updating":
+      vein.game = "updating";
+      break;
+    case "appupdate":
+      s.needsAppUpdate = true;
+      break;
+    case "insync":
+      Object.assign(vein, { mods: "current", installedVersion: vein.latest.version });
+      break;
+    case "offline":
+      Object.assign(s, { offline: true, games: [] });
+      break;
+  }
+}
+
 const progressCbs = new Set<(p: Progress) => void>();
 const toastCbs = new Set<(t: string) => void>();
 const clone = () => structuredClone(s);
@@ -77,8 +102,8 @@ export const mock: Api = {
     return clone();
   },
   async install(id) {
-    await run(id, "download", 40, 30);
-    await run(id, "install", 20, 25);
+    await run(id, "download", 40, 70);
+    await run(id, "install", 20, 40);
     const g = game(id);
     g.mods = "current";
     g.installedVersion = g.latest.version;

@@ -10,7 +10,7 @@
   "mods": [
     { "name": "Shared Crafting", "version": "{version:SharedCrafting}", "summary": "Craft, build and repair from your base's storage" },
     { "name": "Quick Move", "version": "{version:QuickMove}", "summary": "Move placed items and full furniture" },
-    { "name": "UE4SS", "version": "3.0.1", "summary": "Script loader" }
+    { "name": "Mod Loader", "version": "3.0.1", "summary": "Runs the other mods (UE4SS)", "support": true }
   ],
   "notes": [
     "New: the build menu (B) uses materials and tools from your base's storage",

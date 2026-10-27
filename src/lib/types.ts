@@ -1,4 +1,5 @@
-export type ModInfo = { name: string; version: string; summary: string };
+/** support: a piece players don't use directly (the mod loader). Listed on the game page only. */
+export type ModInfo = { name: string; version: string; summary: string; support?: boolean };
 
 export type PackageInfo = {
   version: string;
@@ -44,7 +45,8 @@ export type Art = { hero?: string | null; logo?: string | null };
 
 export type Progress = {
   id: string;
-  phase: "download" | "install" | "remove";
+  /** done: the work ended (sent for automatic syncs too), so the button goes back to normal. */
+  phase: "download" | "install" | "remove" | "done";
   done: number;
   total: number;
 };

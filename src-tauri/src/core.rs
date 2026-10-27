@@ -89,6 +89,8 @@ struct BusyGuard<'a>(&'a Core, String);
 impl Drop for BusyGuard<'_> {
     fn drop(&mut self) {
         self.0.busy.lock().unwrap().remove(&self.1);
+        // Tell the UI the work is over (success or not), including syncs the app started itself.
+        self.0.progress(&self.1, "done", 0, 0);
     }
 }
 
@@ -487,7 +489,7 @@ impl Core {
         cur.save(&self.paths.settings())
     }
 
-    /// Bring every installed game's mods up to date. Returns "<game> <version>" for each update.
+    /// Bring every installed game's mods up to date. Returns "<game> synced  ·  <version>" for each update.
     pub async fn auto_update(self: &Arc<Self>) -> Vec<String> {
         let mut done = Vec::new();
         if !self.settings.lock().unwrap().auto_update || self.needs_app_update() {
@@ -497,7 +499,7 @@ impl Core {
         for g in view.games {
             if g.game == "installed" && !g.running && (g.mods == "outdated" || g.mods == "broken") {
                 match self.install(&g.id).await {
-                    Ok(v) => done.push(format!("{} {v}", g.name)),
+                    Ok(v) => done.push(format!("{} synced  ·  {v}", g.name)),
                     Err(e) => log(format!("auto-update {} failed: {e}", g.id)),
                 }
             }

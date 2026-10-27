@@ -51,6 +51,10 @@ pub struct ModInfo {
     pub version: String,
     #[serde(default)]
     pub summary: String,
+    /// A piece players don't use directly (the mod loader): listed on the game page, left out of
+    /// the library row's short list.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub support: bool,
 }
 
 /// The display/download half of a package.
@@ -88,5 +92,20 @@ pub fn resolve_url(base: &str, url: &str) -> String {
         url.to_string()
     } else {
         format!("{}/{}", base.trim_end_matches('/'), url.trim_start_matches('/'))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ModInfo;
+
+    #[test]
+    fn support_flag_reaches_the_ui_only_when_set() {
+        let loader: ModInfo = serde_json::from_str(r#"{"name":"Mod Loader","support":true}"#).unwrap();
+        assert!(loader.support);
+        assert!(serde_json::to_string(&loader).unwrap().contains(r#""support":true"#));
+        let m: ModInfo = serde_json::from_str(r#"{"name":"Shared Crafting"}"#).unwrap();
+        assert!(!m.support);
+        assert!(!serde_json::to_string(&m).unwrap().contains("support"));
     }
 }

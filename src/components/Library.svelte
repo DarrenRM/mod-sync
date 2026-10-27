@@ -9,13 +9,13 @@
 
 <div class="library">
   <div class="head">
-    <span class="label">Games</span>
+    <span class="label">Modded games</span>
   </div>
 
   <ul>
     {#each games as g, i (g.id)}
       {@const action = primaryAction(g, store.state!.needsAppUpdate)}
-      {@const st = statusLine(g)}
+      {@const st = statusLine(g, store.progress[g.id])}
       <li in:fly={{ y: 12, duration: 600, delay: 140 + i * 70, opacity: 0 }}>
         <div
           class="row"
@@ -30,7 +30,7 @@
           {/if}
           <div class="name">
             <h2>{g.name}</h2>
-            <p class="mods">{g.latest.mods.map((m) => m.name).join("  ·  ")}</p>
+            <p class="mods">{g.latest.mods.filter((m) => !m.support).map((m) => m.name).join("  ·  ")}</p>
           </div>
 
           <span class="status mono {st.tone}">{st.text}</span>
@@ -47,6 +47,9 @@
       </li>
     {/each}
   </ul>
+  {#if store.state && !games.length}
+    <p class="empty">{store.state.offline ? "Can't reach Mod Sync. Check your internet connection." : "No games yet."}</p>
+  {/if}
 </div>
 
 <style>
@@ -174,6 +177,12 @@
   .row:hover .chev {
     color: var(--text);
     transform: translateX(3px);
+  }
+
+  .empty {
+    margin: 0;
+    padding: 28px 0;
+    color: var(--text-2);
   }
 
   .error {
