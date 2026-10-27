@@ -13,10 +13,10 @@
     { "name": "Mod Loader", "version": "3.0.1", "summary": "Runs the other mods (UE4SS)", "support": true }
   ],
   "notes": [
-    "New: the build menu (B) uses materials and tools from your base's storage",
-    "New: repair at a repair bench with materials from your base's storage",
-    "A full bench or backpack no longer stops crafting, building or repairing",
-    "Fixes: no flicker on the stove while cooking, steadier recipe icons"
+    "Fix: repair shows the right material counts, and Repair only lights up when you can repair",
+    "Fix: build menu counts from storage on every tab (big tabs like Fortifications showed all red)",
+    "Pieces you can't build are greyed out like recipes",
+    "Fix: no more flashing in the build menu, recipe icons and tooltips"
   ],
   "preserve": ["ue4ss/Mods/mods.txt", "**/config_local.lua"],
   "ownedDirs": ["ue4ss"],
