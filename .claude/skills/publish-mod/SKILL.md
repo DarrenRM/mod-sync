@@ -16,7 +16,7 @@ Read the repo's `CLAUDE.md` first; it lists the paths and commands.
 3. **Notes.** Rewrite `"notes"` in `mods/<game>/mod.json`: 1–4 short lines on what players will notice. No internal jargon, no ticket numbers, no trailing periods. Update each `mods[].summary` if what a mod does changed.
 4. **Build.** `npm run publish:mod -- <game>`. Read the printed file count and size; a big jump means something unintended got staged. List the zip if unsure: `unzip -l worker/public/packages/<game>/<game>-<version>.zip`.
 5. **Test before deploy.** Build the app if `src-tauri/target/debug/mod-sync.exe` is older than the source (`cd src-tauri && cargo build`), then run `node tools/e2e/sandbox.mjs <game>`. It serves `worker/public` locally and installs, repairs, updates and uninstalls into a fake Steam library, checking that the folder comes back byte-identical. Everything must PASS.
-6. **Deploy.** `npm run deploy`. Then confirm the live catalog has the new version: `curl -s https://mod-sync.example.invalid/catalog.json`. Optionally run `node tools/e2e/sandbox.mjs <game> --live`.
+6. **Deploy.** `npm run deploy`. Then confirm the live catalog has the new version: `curl -s "$MODSYNC_BASE_URL/catalog.json"`. Optionally run `node tools/e2e/sandbox.mjs <game> --live`.
 7. **Tell the user** the version, the notes friends will see, and that apps update within 30 minutes.
 
 ## B. Add a new game

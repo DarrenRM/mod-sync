@@ -10,7 +10,7 @@
     "app:dev": "tauri dev",
     "publish:mod": "node tools/publish-mod.mjs",
     "release:app": "node tools/release-app.mjs",
-    "deploy": "cd worker && npx wrangler deploy",
+    "deploy": "cd worker && npx wrangler deploy -c wrangler.local.jsonc",
     "reports": "node tools/reports.mjs",
     "test:engine": "cd crates/engine && cargo test"
   },

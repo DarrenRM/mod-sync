@@ -21,22 +21,25 @@ if (version) {
 }
 const v = pkg.version;
 
-const conf = JSON.parse(readFileSync(join(root, "src-tauri", "tauri.conf.json"), "utf8"));
-const endpoint = conf.plugins.updater.endpoints[0];
-const base = endpoint.replace(/\/app\/latest\.json$/, "");
-if (base.includes("PLACEHOLDER")) throw new Error("Set the Worker URL in tauri.conf.json first");
+// The Worker URL is not stored in the repo (see .env.example). tauri.conf.json carries a
+// placeholder updater endpoint; the real one is merged in for this build only.
+const base = (process.env.MODSYNC_BASE_URL ?? "").replace(/\/+$/, "");
+if (!base) throw new Error("Set MODSYNC_BASE_URL to the Worker URL first (see .env.example)");
+const configOverride = join(root, "build", "tauri.release.conf.json");
+mkdirSync(join(root, "build"), { recursive: true });
+writeFileSync(configOverride, JSON.stringify({ plugins: { updater: { endpoints: [`${base}/app/latest.json`] } } }));
 
 const keyPath = join(root, ".keys", "updater.key");
 if (!existsSync(keyPath)) throw new Error("Missing .keys/updater.key");
 
-execSync("npx tauri build", {
+execSync(`npx tauri build --config "${configOverride}"`, {
   cwd: root,
   stdio: "inherit",
   env: {
     ...process.env,
     MODSYNC_BASE_URL: base,
     TAURI_SIGNING_PRIVATE_KEY: readFileSync(keyPath, "utf8"),
-    TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "",
+    TAURI_SIGNING_PRIVATE_KEY_PASSWORD: process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD ?? "",
   },
 });
 

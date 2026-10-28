@@ -23,7 +23,8 @@ const live = argv.includes("--live");
 const exeIdx = argv.indexOf("--exe");
 const exe = exeIdx >= 0 ? argv[exeIdx + 1] : join(root, "src-tauri/target/debug/mod-sync.exe");
 const id = argv.find((a, i) => !a.startsWith("--") && argv[i - 1] !== "--exe") ?? "vein";
-const LIVE_BASE = "https://mod-sync.example.invalid";
+const LIVE_BASE = (process.env.MODSYNC_BASE_URL ?? "").replace(/\/+$/, "");
+if (live && !LIVE_BASE) throw new Error("--live needs MODSYNC_BASE_URL (see .env.example)");
 
 let failures = 0;
 const check = (ok, msg) => {

@@ -5,14 +5,14 @@
 //   node tools/reports.mjs get latest      newest one
 //   node tools/reports.mjs delete <id>
 //
-// Needs .keys/admin-token (the Worker's ADMIN_TOKEN secret) and the Worker URL in tauri.conf.json.
+// Needs .keys/admin-token (the Worker's ADMIN_TOKEN secret) and MODSYNC_BASE_URL (see .env.example).
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { unzipSync } from "fflate";
 
 const root = resolve(import.meta.dirname, "..");
-const conf = JSON.parse(readFileSync(join(root, "src-tauri", "tauri.conf.json"), "utf8"));
-const base = conf.plugins.updater.endpoints[0].replace(/\/app\/latest\.json$/, "");
+const base = (process.env.MODSYNC_BASE_URL ?? "").replace(/\/+$/, "");
+if (!base) throw new Error("Set MODSYNC_BASE_URL to the Worker URL first (see .env.example)");
 const token = readFileSync(join(root, ".keys", "admin-token"), "utf8").trim();
 const headers = { authorization: `Bearer ${token}` };
 
