@@ -5,7 +5,7 @@
 //
 // Needs .keys/updater.key (back it up: without it, installed apps can't be updated).
 import { execSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
@@ -67,6 +67,6 @@ const olds = readdirSync(out)
   .filter((f) => /^ModSync_.+_x64-setup\.exe$/.test(f) && f !== versioned)
   .sort()
   .slice(0, -1);
-for (const f of olds) execSync(`node -e "require('fs').unlinkSync(process.argv[1])" "${join(out, f)}"`);
+for (const f of olds) unlinkSync(join(out, f));
 
 console.log(`\nApp ${v} ready in worker/public/app. Next: npm run deploy`);

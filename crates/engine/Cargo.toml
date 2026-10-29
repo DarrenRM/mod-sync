@@ -2,6 +2,7 @@
 name = "modsync-engine"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 description = "Install / update / uninstall engine for Mod Sync"
 publish = false
 
