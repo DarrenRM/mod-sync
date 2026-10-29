@@ -2,6 +2,10 @@
 
 A Windows app that installs a group's game mods in one click, keeps every player on the latest version, and takes the mods back out cleanly.
 
+![The Mod Sync library: VEIN out of sync with a Sync button, and a second game not on this PC with Get on Steam](docs/screenshot-library.webp)
+
+*The library, from the browser mock (`npm run dev`) on its sample data.*
+
 ## What it is
 
 Mod Sync ships mods to a group of friends who play together. Without it, each friend copies a proxy `dwmapi.dll` and a `ue4ss/` folder into the game, enables each mod with a line in the loader's `mods.txt`, and does it all again for every new version. With it, friends open the app, see which games have mods and press Sync. New versions then arrive on their own while the game is closed. Uninstall returns the game folder to how it was, keeping only the player's own config files. The first game is VEIN: a UE4SS mod loader plus a set of Lua mods.
