@@ -10,7 +10,8 @@ pub struct PackageSpec {
     /// Globs (case-insensitive, `/` separators): never overwritten if present.
     #[serde(default)]
     pub preserve: Vec<String>,
-    /// Removed whole on uninstall, but only if the install created them.
+    /// Swept on uninstall (keeping files that match `preserve`), but only if
+    /// the install created them.
     #[serde(default)]
     pub owned_dirs: Vec<String>,
     #[serde(default)]
@@ -41,7 +42,7 @@ pub struct InstallRecord {
     /// Directories this install created, relative to `target`, parents first.
     pub created_dirs: Vec<String>,
     pub edits: Vec<EditEntry>,
-    /// Copied from the spec so uninstall knows which created dirs to sweep whole.
+    /// Copied from the spec so uninstall knows which created dirs to sweep.
     #[serde(default)]
     pub owned_dirs: Vec<String>,
     /// Copied from the spec so that sweep keeps the user's own config files

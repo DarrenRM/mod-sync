@@ -15,7 +15,9 @@ use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 use tauri_plugin_autostart::ManagerExt as _;
 use tauri_plugin_opener::OpenerExt;
 
-/// Worker URL baked in at build time (`MODSYNC_BASE_URL`); the same env var overrides it at runtime.
+/// Worker URL for the catalog, packages and bug reports, baked in at build time
+/// (`MODSYNC_BASE_URL`); the same env var overrides it at runtime. The updater's endpoint is
+/// separate: `tools/release-app.mjs` sets it in the Tauri config for release builds.
 const BUILT_BASE_URL: &str = match option_env!("MODSYNC_BASE_URL") {
     Some(v) => v,
     None => "https://mod-sync.example.invalid",

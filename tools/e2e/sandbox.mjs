@@ -7,13 +7,14 @@
 //
 // It builds a fake Steam root + game folder (with a pre-existing file at every top-level package
 // path, so backups get exercised), runs the real app headless (--cli), checks every package file
-// landed, simulates the game writing logs and a crash dump, repairs a deleted file, updates to a
-// synthetic next version, uninstalls, and checks the folder is byte-identical to before.
+// landed, simulates the game writing logs and a crash dump and the player adding their own config
+// file, repairs a deleted file, updates to a synthetic next version, uninstalls, and checks the folder
+// is byte-identical to before except for that config file, which uninstall keeps on purpose.
 import { execFile, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, posix, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { unzipSync, zipSync } from "fflate";
 
@@ -144,13 +145,17 @@ try {
   st = await status();
   check(st.mods === "current" && st.installedVersion === entry.package.version, `status current ${st.installedVersion}`);
 
-  // The game runs: loader logs, crash dump, user config.
+  // The game runs: loader logs, crash dump. The player adds their own config next to a mod: a file
+  // matching a `**/<name>` preserve pattern that the package doesn't ship.
   for (const d of entry.package.ownedDirs ?? []) {
     writeFileSync(join(target, d, "runtime.log"), "log");
     writeFileSync(join(target, d, "crash_1.dmp"), "dump");
   }
-  const cfg = names.map((n) => dirname(n)).find((d) => d.endsWith("scripts"));
-  if (cfg) writeFileSync(join(target, cfg, "config_local.lua"), "return { debug = true }\n");
+  const cfgName = entry.package.preserve?.find((p) => p.startsWith("**/"))?.slice(3);
+  const cfgDir = cfgName && names.map((n) => posix.dirname(n)).find((d) => d.endsWith("scripts") && !files[`${d}/${cfgName}`]);
+  const cfg = cfgDir && `${cfgDir}/${cfgName}`;
+  const cfgText = "return { debug = true }\n";
+  if (cfg) writeFileSync(join(target, cfg), cfgText);
 
   const victim = names.find((n) => n !== topFile) ?? names[0];
   rmSync(join(target, victim));
@@ -165,13 +170,21 @@ try {
   check(existsSync(join(target, added)), `added file present`);
   check(!existsSync(join(target, dropped)), `dropped file removed (${dropped})`);
   check(readFileSync(join(target, changed), "utf8") === "-- v2\n", `changed file updated`);
-  if (cfg) check(readFileSync(join(target, cfg, "config_local.lua"), "utf8").includes("debug"), "config_local.lua kept");
+  if (cfg) check(readFileSync(join(target, cfg), "utf8") === cfgText, `${cfgName} kept through the update`);
 
   check((await cli("uninstall", id)) === `uninstalled ${id}`, "uninstall");
   check((await cli("uninstall", id)) === `uninstalled ${id}`, "second uninstall is a no-op");
+  // Uninstall restores everything except the player's config, which stays with the folders holding it.
+  const expected = { ...before };
+  if (cfg) {
+    const key = posix.join(entry.target.replaceAll("\\", "/"), cfg);
+    expected[key] = createHash("sha256").update(cfgText).digest("hex");
+    for (let d = posix.dirname(key); d !== "." && !before[`${d}/`]; d = posix.dirname(d)) expected[`${d}/`] = "dir";
+  }
   const after = snapshot(game);
-  const diff = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((k) => before[k] !== after[k]);
-  check(diff.length === 0, diff.length ? `folder differs: ${diff.join(", ")}` : "game folder byte-identical to before");
+  const diff = [...new Set([...Object.keys(expected), ...Object.keys(after)])].filter((k) => expected[k] !== after[k]);
+  const same = cfg ? `game folder byte-identical to before, plus the player's ${cfgName}` : "game folder byte-identical to before";
+  check(diff.length === 0, diff.length ? `folder differs: ${diff.join(", ")}` : same);
   check((await status()).mods === "none", "status back to none");
   check(!existsSync(join(data, `installs/${id}.json`)), "install record removed");
 } finally {
