@@ -1,8 +1,10 @@
 //! Install engine for Mod Sync.
 //!
 //! Installs an extracted package into a game folder under an undo log, records
-//! everything it touched in an [`InstallRecord`], and can replay that record
-//! backwards so the game folder ends up byte for byte as it was.
+//! everything it touched in an [`InstallRecord`] (written in the same
+//! transaction), and can replay that record backwards so the game folder ends
+//! up byte for byte as it was, apart from files matching the package's
+//! `preserve` list that the player made themselves.
 
 mod archive;
 mod error;

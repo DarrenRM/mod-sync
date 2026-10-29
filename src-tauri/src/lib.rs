@@ -137,10 +137,13 @@ fn show_main(app: &AppHandle) {
     }
 }
 
-/// Keeps mods current while the app runs: right away, then every 30 minutes.
+/// Keeps mods current while the app runs: right away, then every 30 minutes. First rolls back any
+/// sync an earlier run didn't finish.
 fn spawn_sync_loop(app: AppHandle, core: Arc<Core>) {
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_secs(3)).await;
+        let c = core.clone();
+        let _ = tauri::async_runtime::spawn_blocking(move || c.recover_interrupted()).await;
         loop {
             core.refresh_catalog().await;
             let updated = core.auto_update().await;

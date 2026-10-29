@@ -26,6 +26,11 @@ pub enum Error {
     /// `work_dir`; [`crate::recover`] (or the next `apply`) retries the rollback.
     #[error("{cause}; rollback also failed: {rollback}")]
     RollbackFailed { cause: Box<Error>, rollback: String },
+    /// `apply` found the undo log of an interrupted call in `work_dir` and
+    /// rolled it back instead of starting. Read the install record again
+    /// (rolling back can put the previous one back) and retry.
+    #[error("an interrupted install was rolled back; try again")]
+    Interrupted,
 }
 
 impl Error {

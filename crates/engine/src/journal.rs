@@ -1,5 +1,6 @@
-//! Write-ahead undo log. Each step is logged *before* it touches the disk, so a
-//! failed call (or a crashed process, via [`recover`]) can be rolled back.
+//! Write-ahead undo log. Each step is logged, and flushed to disk, *before* it
+//! touches the game folder, so a failed call (or a killed process or a power
+//! cut, via [`recover`]) can be rolled back.
 
 use std::fs::{self, File};
 use std::io::{self, Write};
@@ -33,9 +34,9 @@ pub(crate) struct Journal {
 }
 
 impl Journal {
-    /// Starts a new log in `work_dir`, first rolling back any interrupted one.
+    /// Starts a new log in `work_dir`. Run [`recover`] first: this replaces any
+    /// log already there.
     pub fn begin(work_dir: &Path) -> Result<Self> {
-        recover(work_dir)?;
         let saved = work_dir.join(SAVED);
         fs::create_dir_all(&saved).ctx("create dir", &saved)?;
         let path = work_dir.join(LOG);
@@ -52,6 +53,8 @@ impl Journal {
         line.push(b'\n');
         let path = self.dir.join(LOG);
         self.log.write_all(&line).ctx("write", &path)?;
+        // On disk before the step it undoes runs, so a power cut can't lose it.
+        self.log.sync_data().ctx("write", &path)?;
         self.ops.push(op);
         Ok(())
     }
@@ -59,7 +62,7 @@ impl Journal {
     /// Copies `path` aside so undo can put it back. Call before modifying it.
     pub fn save(&mut self, path: &Path) -> Result<()> {
         let saved = self.dir.join(SAVED).join(self.ops.len().to_string());
-        fs::copy(path, &saved).ctx("save copy of", path)?;
+        fsx::copy_durable(path, &saved).ctx("save copy of", path)?;
         self.push(Undo::Restore {
             path: path.to_path_buf(),
             saved,
@@ -135,7 +138,9 @@ fn undo_all(ops: &[Undo]) -> std::result::Result<(), String> {
 
 /// Rolls back an install/update that was interrupted (process killed, power
 /// loss) using the undo log left in `work_dir`. Returns `Ok(true)` if there was
-/// something to roll back. `apply` calls this automatically before starting.
+/// something to roll back. On failure the log is kept, so calling it again
+/// retries. Run it before reading the install record: rolling back can put the
+/// previous record back. `apply` checks for an interrupted log too.
 pub fn recover(work_dir: &Path) -> Result<bool> {
     let path = work_dir.join(LOG);
     let text = match fs::read_to_string(&path) {

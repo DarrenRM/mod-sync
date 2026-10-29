@@ -213,7 +213,22 @@ impl Core {
     }
 
     pub fn load_record(&self, id: &str) -> Option<engine::InstallRecord> {
-        std::fs::read(self.paths.record(id)).ok().and_then(|b| serde_json::from_slice(&b).ok())
+        read_record(&self.paths.record(id))
+    }
+
+    /// At startup: roll back any sync that was interrupted (app killed, PC shut down) from the
+    /// undo log it left. A running game is left alone; its next Sync or uninstall rolls back first.
+    pub fn recover_interrupted(&self) {
+        let Some(catalog) = self.catalog() else { return };
+        for g in &catalog.games {
+            if self.running(g) {
+                continue;
+            }
+            let Ok(_guard) = self.claim(&g.id) else { continue };
+            if let Err(e) = recover(&self.paths, &g.id) {
+                log(format!("recover {}: {e}", g.id));
+            }
+        }
     }
 
     pub fn view(&self) -> AppStateView {
@@ -314,14 +329,17 @@ impl Core {
         let zip = self.download(id, &info).await?;
 
         let this_paths = self.paths.clone();
-        let prev = self.load_record(id);
         let emit = self.emit.clone();
         let id_owned = id.to_string();
         let record = tauri::async_runtime::spawn_blocking(move || -> Result<engine::InstallRecord, String> {
+            // Roll back an interrupted sync before reading the record: rolling back can put the
+            // previous record back.
+            recover(&this_paths, &id_owned)?;
+            let record_path = this_paths.record(&id_owned);
+            let prev = read_record(&record_path);
             let stage = this_paths.work("stage", &id_owned);
             let undo = this_paths.work("undo", &id_owned);
             let _ = std::fs::remove_dir_all(&stage);
-            let _ = std::fs::remove_dir_all(&undo);
             std::fs::create_dir_all(&stage).map_err(|e| e.to_string())?;
             engine::extract_zip(&zip, &stage).map_err(|e| format!("Couldn't unpack the download: {e}"))?;
             let mut last = Instant::now() - Duration::from_secs(1);
@@ -339,6 +357,7 @@ impl Core {
                 prev.as_ref(),
                 &this_paths.backups(&id_owned),
                 &undo,
+                &record_path,
                 &mut on_progress,
             )
             .map_err(|e| {
@@ -348,7 +367,6 @@ impl Core {
                     e.to_string()
                 }
             })?;
-            util::write_json_atomic(&this_paths.record(&id_owned), &record)?;
             let _ = std::fs::remove_dir_all(&stage);
             Ok(record)
         })
@@ -414,11 +432,16 @@ impl Core {
 
     pub async fn uninstall(&self, id: &str) -> Result<(), String> {
         let _guard = self.claim(id)?;
-        let Some(mut record) = self.load_record(id) else { return Ok(()) };
-        if let Ok(g) = self.entry(id) {
-            if self.running(&g) {
+        let entry = self.entry(id).ok();
+        if let Some(g) = &entry {
+            if self.running(g) {
                 return Err(format!("Close {} first", g.name));
             }
+        }
+        // Finish rolling back an interrupted sync first, so the record matches the folder.
+        recover(&self.paths, id)?;
+        let Some(mut record) = self.load_record(id) else { return Ok(()) };
+        if let Some(g) = &entry {
             // Records from app 0.2.0 and older lack the preserve list; take it from the catalog
             // so the user's own config files survive the sweep.
             if record.preserve.is_empty() {
@@ -653,6 +676,22 @@ impl Core {
         }
         let _ = std::fs::write(&file, &bytes);
         Some(bytes)
+    }
+}
+
+fn read_record(path: &Path) -> Option<engine::InstallRecord> {
+    std::fs::read(path).ok().and_then(|b| serde_json::from_slice(&b).ok())
+}
+
+/// Rolls back a sync that was interrupted (app killed, PC shut down) from the undo log it left.
+fn recover(paths: &Paths, id: &str) -> Result<(), String> {
+    match engine::recover(&paths.work("undo", id)) {
+        Ok(true) => {
+            log(format!("rolled back an interrupted sync of {id}"));
+            Ok(())
+        }
+        Ok(false) => Ok(()),
+        Err(e) => Err(format!("Couldn't undo an interrupted sync. Close the game and try again. ({e})")),
     }
 }
 

@@ -171,6 +171,22 @@ impl Tx<'_> {
         fsx::install_file(src, dest, &tmp)
     }
 
+    /// Writes the install record as the transaction's last step. A rollback
+    /// (or [`crate::recover`] after a crash) puts the previous record back
+    /// along with the files, so the record and the game folder always agree.
+    fn write_record(&mut self, path: &Path, record: &InstallRecord) -> Result<()> {
+        if let Some(dir) = path.parent() {
+            // App data, not the game folder: an empty folder left by a rollback is harmless.
+            fs::create_dir_all(dir).ctx("create dir", dir)?;
+        }
+        let bytes = serde_json::to_vec_pretty(record)
+            .map_err(|e| Error::Invalid(format!("install record: {e}")))?;
+        self.guard(path)?;
+        let tmp = fsx::temp_path(path);
+        self.j.push(Undo::RemoveFile { path: tmp.clone() })?;
+        fsx::write_atomic_via(path, &tmp, &bytes)
+    }
+
     /// Picks a free backup path for `rel` (a stale backup is never overwritten).
     fn backup_rel(&self, rel: &str) -> String {
         let mut candidate = rel.to_string();
@@ -243,8 +259,14 @@ fn merge_change(prev: Option<&EditEntry>, now: LineChange) -> LineChange {
 
 /// Installs (`prev` = None) or updates the extracted package in `staged` into
 /// `target`. Runs under an undo log in `work_dir`; on any error everything this
-/// call changed is rolled back and the error returned. `progress(done, total)`
-/// is called with staged bytes copied.
+/// call changed is rolled back and the error returned. The new record is
+/// written to `record_path` inside the same transaction, so it is on disk
+/// before the call commits. `progress(done, total)` is called with staged bytes
+/// copied.
+///
+/// `prev` must be the record read after [`crate::recover`] has run. If
+/// `work_dir` still holds an interrupted call's log, this rolls it back and
+/// returns [`Error::Interrupted`] without starting, because `prev` may be stale.
 #[allow(clippy::too_many_arguments)]
 pub fn apply(
     target: &Path,
@@ -254,8 +276,12 @@ pub fn apply(
     prev: Option<&InstallRecord>,
     backup_root: &Path,
     work_dir: &Path,
+    record_path: &Path,
     progress: &mut dyn FnMut(u64, u64),
 ) -> Result<InstallRecord> {
+    if crate::journal::recover(work_dir)? {
+        return Err(Error::Interrupted);
+    }
     if !target.is_dir() {
         return Err(Error::Invalid(format!(
             "game folder {} does not exist",
@@ -307,23 +333,15 @@ pub fn apply(
         created_dirs: prev_dirs,
         known_dirs: HashSet::new(),
     };
-    let result = run(&mut tx, &staged_files, &edits, &preserve, prev, progress);
-    let Tx {
-        j, created_dirs, ..
-    } = tx;
-    match result {
-        Ok((files, edit_entries, used_backups)) => {
-            j.commit();
-            for b in used_backups {
-                delete_backup(backup_root, &b);
-            }
-            Ok(InstallRecord {
+    let result = run(&mut tx, &staged_files, &edits, &preserve, prev, progress).and_then(
+        |(files, edit_entries, used_backups)| {
+            let record = InstallRecord {
                 game_id: game_id.to_string(),
                 version: spec.version.clone(),
                 target: target.to_path_buf(),
                 installed_at: now_rfc3339(),
                 files,
-                created_dirs,
+                created_dirs: tx.created_dirs.clone(),
                 edits: edit_entries,
                 owned_dirs: spec
                     .owned_dirs
@@ -331,7 +349,19 @@ pub fn apply(
                     .filter_map(|d| normalize_rel(d).ok())
                     .collect(),
                 preserve: spec.preserve.clone(),
-            })
+            };
+            tx.write_record(record_path, &record)?;
+            Ok((record, used_backups))
+        },
+    );
+    let Tx { j, .. } = tx;
+    match result {
+        Ok((record, used_backups)) => {
+            j.commit();
+            for b in used_backups {
+                delete_backup(backup_root, &b);
+            }
+            Ok(record)
         }
         Err(e) => match j.rollback() {
             Ok(()) => Err(e),
@@ -408,7 +438,7 @@ fn run(
             tx.j.push(Undo::RemoveFile {
                 path: backup.clone(),
             })?;
-            fs::copy(&dest, &backup).ctx("back up", &dest)?;
+            fsx::copy_durable(&dest, &backup).ctx("back up", &dest)?;
             tx.j.push(Undo::Restore {
                 path: dest.clone(),
                 saved: backup,

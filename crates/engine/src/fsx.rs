@@ -96,21 +96,38 @@ fn commit_temp(tmp: &Path, dest: &Path) -> Result<()> {
 
 /// Writes `bytes` to `dest` via a temp file + rename.
 pub(crate) fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<()> {
-    let tmp = temp_path(dest);
+    write_atomic_via(dest, &temp_path(dest), bytes)
+}
+
+/// [`write_atomic`] through a given temp file (see [`temp_path`]), so the
+/// caller can journal it first.
+pub(crate) fn write_atomic_via(dest: &Path, tmp: &Path, bytes: &[u8]) -> Result<()> {
     let res = (|| -> io::Result<()> {
-        let mut f = File::create(&tmp)?;
+        let mut f = File::create(tmp)?;
         f.write_all(bytes)?;
         f.sync_all()
     })();
     if let Err(e) = res {
-        let _ = fs::remove_file(&tmp);
+        let _ = fs::remove_file(tmp);
         return Err(Error::Io {
             op: "write",
-            path: tmp,
+            path: tmp.to_path_buf(),
             source: e,
         });
     }
-    commit_temp(&tmp, dest)
+    commit_temp(tmp, dest)
+}
+
+/// Plain copy (keeps timestamps on Windows), flushed to disk before returning,
+/// so an undo step or backup that points at the copy survives a power cut. A
+/// read-only copy can't be opened to flush; the OS writes that one back itself.
+pub(crate) fn copy_durable(src: &Path, dest: &Path) -> io::Result<()> {
+    fs::copy(src, dest)?;
+    match fs::OpenOptions::new().write(true).open(dest) {
+        Ok(f) => f.sync_all(),
+        Err(e) if e.kind() == io::ErrorKind::PermissionDenied => Ok(()),
+        Err(e) => Err(e),
+    }
 }
 
 /// Copies `src` over `dest` via the temp file `tmp` (see [`temp_path`]) + rename,
@@ -145,7 +162,7 @@ pub(crate) fn install_file(src: &Path, dest: &Path, tmp: &Path) -> Result<String
 /// Plain copy (keeps timestamps on Windows) into a temp file, then rename over `dest`.
 pub(crate) fn copy_atomic(src: &Path, dest: &Path) -> Result<()> {
     let tmp = temp_path(dest);
-    if let Err(e) = fs::copy(src, &tmp) {
+    if let Err(e) = copy_durable(src, &tmp) {
         let _ = fs::remove_file(&tmp);
         return Err(Error::Io {
             op: "copy",

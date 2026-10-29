@@ -65,6 +65,8 @@ pub struct Env {
     pub game: PathBuf,
     pub backups: PathBuf,
     pub work: PathBuf,
+    /// Where `apply` writes the install record.
+    pub record: PathBuf,
     staged_count: std::cell::Cell<u32>,
 }
 
@@ -80,10 +82,12 @@ impl Env {
         fs::create_dir_all(&game).unwrap();
         let backups = tmp.path().join("appdata").join("backups").join("vein");
         let work = tmp.path().join("appdata").join("work").join("vein");
+        let record = tmp.path().join("appdata").join("installs").join("vein.json");
         Env {
             game,
             backups,
             work,
+            record,
             tmp,
             staged_count: Default::default(),
         }
@@ -115,6 +119,7 @@ impl Env {
             prev,
             &self.backups,
             &self.work,
+            &self.record,
             &mut |_, _| {},
         )
     }
@@ -128,10 +133,15 @@ impl Env {
         let rec = self.try_apply(staged, spec, prev).expect("apply");
         // Undo data is gone after success.
         assert!(!self.work.join("undo.jsonl").exists());
-        // The record must survive a JSON round trip (the app persists it).
-        let json = serde_json::to_string(&rec).unwrap();
-        assert_eq!(serde_json::from_str::<InstallRecord>(&json).unwrap(), rec);
+        // The record on disk is the one returned.
+        assert_eq!(self.saved_record().as_ref(), Some(&rec));
         rec
+    }
+
+    /// The install record `apply` last wrote, if any.
+    pub fn saved_record(&self) -> Option<InstallRecord> {
+        let bytes = fs::read(&self.record).ok()?;
+        Some(serde_json::from_slice(&bytes).unwrap())
     }
 
     pub fn game_snap(&self) -> Snapshot {

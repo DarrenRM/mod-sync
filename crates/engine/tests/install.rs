@@ -469,6 +469,7 @@ fn rollback_on_fresh_install_failure() {
         env.backup_snap().keys()
     );
     assert!(!env.work.join("undo.jsonl").exists());
+    assert!(env.saved_record().is_none());
 }
 
 #[test]
@@ -489,6 +490,7 @@ fn rollback_on_update_failure_late_in_edits() {
 
     assert_same(&mid_game_with_blocker, &env.game_snap());
     assert_same(&mid_backups, &env.backup_snap());
+    assert_eq!(env.saved_record().as_ref(), Some(&r1));
     fs::remove_dir(env.game.join("ue4ss/blocker.txt")).unwrap();
     assert_same(&mid_game, &env.game_snap());
 
@@ -634,6 +636,7 @@ fn progress_reports_bytes() {
         None,
         &env.backups,
         &env.work,
+        &env.record,
         &mut |d, t| calls.push((d, t)),
     )
     .unwrap();
@@ -642,22 +645,19 @@ fn progress_reports_bytes() {
     assert!(calls.windows(2).all(|w| w[0].0 <= w[1].0));
 }
 
-#[test]
-fn crash_mid_apply_is_recovered() {
-    let env = Env::new();
-    seed_game(&env);
-    let before = env.game_snap();
-    let staged = env.stage(V1);
+/// Runs `apply` and kills it (a panic) a few files in, leaving its undo log behind.
+fn crash_mid_apply(env: &Env, staged: &std::path::Path, s: &modsync_engine::PackageSpec) {
     let mut n = 0;
     let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let _ = modsync_engine::apply(
             &env.game,
-            &staged,
-            &spec("1", &[], &[], vec![]),
+            staged,
+            s,
             "vein",
             None,
             &env.backups,
             &env.work,
+            &env.record,
             &mut |_, _| {
                 n += 1;
                 if n == 4 {
@@ -671,12 +671,68 @@ fn crash_mid_apply_is_recovered() {
         env.work.join("undo.jsonl").exists(),
         "undo log survives the crash"
     );
+}
+
+#[test]
+fn crash_mid_apply_is_recovered() {
+    let env = Env::new();
+    seed_game(&env);
+    let before = env.game_snap();
+    crash_mid_apply(&env, &env.stage(V1), &spec("1", &[], &[], vec![]));
     assert_ne!(env.game_snap(), before);
 
     assert!(recover(&env.work).unwrap());
     assert_same(&before, &env.game_snap());
     assert!(env.backup_snap().is_empty());
+    assert!(env.saved_record().is_none());
     assert!(!recover(&env.work).unwrap());
+}
+
+#[test]
+fn apply_rolls_back_an_interrupted_log_before_starting() {
+    let env = Env::new();
+    seed_game(&env);
+    let before = env.game_snap();
+    let staged = env.stage(V1);
+    let s = spec("1", &[], &["ue4ss"], vec![]);
+    crash_mid_apply(&env, &staged, &s);
+
+    // The record the caller passes may predate the rollback, so apply rolls
+    // back and stops instead of starting on top of it.
+    assert!(matches!(
+        env.try_apply(&staged, &s, None),
+        Err(Error::Interrupted)
+    ));
+    assert_same(&before, &env.game_snap());
+    assert!(!env.work.join("undo.jsonl").exists());
+
+    // The retry installs normally, and uninstall still gets back to the start.
+    let rec = env.apply(&staged, &s, None);
+    uninstall(&rec, &env.backups).unwrap();
+    assert_same(&before, &env.game_snap());
+}
+
+#[cfg(windows)]
+#[test]
+fn rollback_when_record_cannot_be_written() {
+    let (env, _before, r1) = v2_scenario();
+    let mid_game = env.game_snap();
+    let mid_backups = env.backup_snap();
+
+    // Something holds the record open, so the new one can't replace it: the
+    // update must not commit without its record.
+    let lock_handle = lock(&env.record);
+    let err = env
+        .try_apply(&env.stage(V2), &v2_spec(), Some(&r1))
+        .unwrap_err();
+    drop(lock_handle);
+    assert!(err.is_file_in_use(), "{err}");
+    assert!(!matches!(err, Error::RollbackFailed { .. }), "{err}");
+
+    assert_same(&mid_game, &env.game_snap());
+    assert_same(&mid_backups, &env.backup_snap());
+    assert_eq!(env.saved_record().as_ref(), Some(&r1));
+    assert!(!env.work.join("undo.jsonl").exists());
 }
 
 #[test]
@@ -708,6 +764,7 @@ fn apply_rejects_bad_inputs() {
         None,
         &env.backups,
         &env.work,
+        &env.record,
         &mut |_, _| {},
     );
     assert!(r.is_err());
