@@ -92,13 +92,17 @@ impl Catalog {
 
 impl GameEntry {
     /// `id` names files and folders in the app's data folder, and `target` is joined onto the game
-    /// folder, so neither may be absolute or climb out with `..`.
+    /// folder, so neither may be absolute, climb out with `..`, or name a Windows device.
     pub fn check_paths(&self) -> Result<(), String> {
-        if !is_slug(&self.id) {
+        if !is_slug(&self.id) || is_device_name(&self.id) {
             return Err(format!("bad id {:?}", self.id));
         }
-        if !self.target.is_empty() && modsync_engine::normalize_rel(&self.target).is_err() {
-            return Err(format!("bad target {:?} for {}", self.target, self.id));
+        if !self.target.is_empty() {
+            let ok = modsync_engine::normalize_rel(&self.target)
+                .is_ok_and(|t| !t.split('/').any(is_device_name));
+            if !ok {
+                return Err(format!("bad target {:?} for {}", self.target, self.id));
+            }
         }
         Ok(())
     }
@@ -117,6 +121,16 @@ fn is_slug(s: &str) -> bool {
     s.len() <= 64
         && s.starts_with(|c: char| c.is_ascii_alphanumeric())
         && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+/// A Windows device name (`con`, `nul`, `com1`…), which opens the device rather than a file, even
+/// with an extension (`nul.json`) or trailing spaces.
+fn is_device_name(name: &str) -> bool {
+    let stem = name.split('.').next().unwrap_or("").trim_end_matches(' ').to_ascii_lowercase();
+    matches!(stem.as_str(), "con" | "prn" | "aux" | "nul" | "conin$" | "conout$")
+        || (stem.len() == 4
+            && (stem.starts_with("com") || stem.starts_with("lpt"))
+            && matches!(stem.as_bytes()[3], b'1'..=b'9'))
 }
 
 /// A catalog value used inside a file name (a package version): ASCII letters, digits, `.`, `-`,
@@ -156,11 +170,16 @@ mod tests {
                 game("rooted", "/Windows"),
                 game("climb", "Vein/../../.."),
                 game("unc", "\\\\server\\share"),
+                game("nul", "Vein"),
+                game("COM1", "Vein"),
+                game("device-file", "Vein/CON.txt"),
+                game("device-dir", "Vein/aux /Binaries"),
+                game("console", "Vein/com10/lpt/conf.d"),
             ]
         }))
         .unwrap();
         let ids: Vec<_> = cat.checked().games.into_iter().map(|g| g.id).collect();
-        assert_eq!(ids, ["vein", "vein-server"]);
+        assert_eq!(ids, ["vein", "vein-server", "console"]);
 
         assert!(is_file_name_safe("0.5.0-r1"));
         assert!(!is_file_name_safe("../0.5.0"));
