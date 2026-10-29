@@ -861,6 +861,119 @@ fn recovery_skips_a_torn_line_cut_mid_character() {
     assert_same(&before, &env.game_snap());
 }
 
+/// VEIN's real shape: the package ships `ue4ss/Mods/mods.txt` into a folder
+/// the sync creates, then edits it. The returned record path can't be
+/// written, so the sync fails at its last step and rolls back.
+fn edited_new_file_case(
+    env: &Env,
+) -> (
+    std::path::PathBuf,
+    modsync_engine::PackageSpec,
+    std::path::PathBuf,
+) {
+    let mut files: Vec<(&str, &[u8])> = V1.to_vec();
+    files.push(("ue4ss/Mods/mods.txt", MODS_TXT.as_bytes()));
+    let s = spec(
+        "1",
+        &["ue4ss/Mods/mods.txt"],
+        &["ue4ss"],
+        vec![line_edit(
+            "ue4ss/Mods/mods.txt",
+            "SharedCraftingClient",
+            "SharedCraftingClient : 1",
+            Some("Keybinds"),
+        )],
+    );
+    let blocker = env.tmp.path().join("blocker");
+    fs::write(&blocker, b"a file, not a folder").unwrap();
+    (env.stage(&files), s, blocker.join("vein.json"))
+}
+
+/// The game loads the new dwmapi.dll mid-sync and the sync then fails, so
+/// its rollback is blocked. Once the game is closed, recovery must finish,
+/// though the first pass already removed the edited file's new folder.
+#[cfg(windows)]
+#[test]
+fn recovery_finishes_a_blocked_rollback_of_an_edited_new_file() {
+    let env = Env::new();
+    seed_game(&env);
+    let before = env.game_snap();
+    let (staged, s, record) = edited_new_file_case(&env);
+    let dll = env.game.join("dwmapi.dll");
+    let mut lock_handle = None;
+    let mut n = 0;
+    let err = modsync_engine::apply(
+        &env.game,
+        &staged,
+        &s,
+        "vein",
+        None,
+        &env.backups,
+        &env.work,
+        &record,
+        &mut |_, _| {
+            n += 1;
+            if n == 2 {
+                lock_handle = Some(lock(&dll));
+            }
+        },
+    )
+    .unwrap_err();
+    drop(lock_handle);
+    assert!(matches!(err, Error::RollbackFailed { .. }), "{err}");
+    assert!(!env.game.join("ue4ss/Mods").exists());
+
+    assert!(recover(&env.work).unwrap());
+    assert_same(&before, &env.game_snap());
+    assert!(env.backup_snap().is_empty());
+    assert!(!recover(&env.work).unwrap());
+}
+
+/// The same sync fails and its rollback completes, but another program holds
+/// the log, so it can't be deleted. The next start replays the finished
+/// rollback, which must succeed and change nothing.
+#[cfg(windows)]
+#[test]
+fn recovery_replays_a_finished_rollback_whose_log_was_left_behind() {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_SHARE_READ_WRITE: u32 = 1 | 2;
+    let env = Env::new();
+    seed_game(&env);
+    let before = env.game_snap();
+    let (staged, s, record) = edited_new_file_case(&env);
+    let log = env.work.join("undo.jsonl");
+    let mut holder = None;
+    let err = modsync_engine::apply(
+        &env.game,
+        &staged,
+        &s,
+        "vein",
+        None,
+        &env.backups,
+        &env.work,
+        &record,
+        &mut |done, total| {
+            if done == total && total > 0 && holder.is_none() {
+                let h = fs::OpenOptions::new()
+                    .read(true)
+                    .share_mode(FILE_SHARE_READ_WRITE)
+                    .open(&log)
+                    .unwrap();
+                holder = Some(h);
+            }
+        },
+    )
+    .unwrap_err();
+    drop(holder);
+    assert!(!matches!(err, Error::RollbackFailed { .. }), "{err}");
+    assert_same(&before, &env.game_snap());
+    assert!(log.exists(), "the held log outlives the rollback");
+
+    assert!(recover(&env.work).unwrap());
+    assert_same(&before, &env.game_snap());
+    assert!(!log.exists());
+}
+
 #[test]
 fn apply_rejects_bad_inputs() {
     let env = Env::new();

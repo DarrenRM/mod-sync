@@ -88,7 +88,7 @@ Kept out of the repo: `.keys/updater.key` (update signing), `.keys/admin-token` 
 
 ## Status
 
-Released to the group in October 2026; the app is at 0.3.0. Built with Tauri 2, Rust, Svelte 5 and Cloudflare Workers. 62 Rust tests, 58 of them on the install engine, plus end-to-end scripts that drive the real app against a fake Steam library.
+Released to the group in October 2026; the app is at 0.3.0. Built with Tauri 2, Rust, Svelte 5 and Cloudflare Workers. 64 Rust tests, 60 of them on the install engine, plus end-to-end scripts that drive the real app against a fake Steam library.
 
 ## How it was built
 

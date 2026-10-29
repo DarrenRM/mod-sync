@@ -3,7 +3,7 @@
 //! cut, via [`recover`]) can be rolled back. A transaction commits by logging
 //! a final marker, so a log that outlives its commit is never rolled back.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -169,11 +169,24 @@ fn undo_all(ops: &[Undo]) -> std::result::Result<(), String> {
     // replay reaches the deletion next. Keep the copy if it wasn't put back:
     // it may be the only one of the player's original file.
     let mut not_restored: HashSet<&Path> = HashSet::new();
-    for op in ops.iter().rev() {
+    // A file this transaction created and then changed (a package file it
+    // also edits) is removed anyway, so its restore is skipped. Once a pass
+    // has removed the file's new folder, that restore could never succeed.
+    let mut first_removal: HashMap<&Path, usize> = HashMap::new();
+    for (i, op) in ops.iter().enumerate() {
         if let Undo::RemoveFile { path } = op {
-            if not_restored.contains(path.as_path()) {
-                continue;
+            first_removal.entry(path.as_path()).or_insert(i);
+        }
+    }
+    for (i, op) in ops.iter().enumerate().rev() {
+        match op {
+            Undo::RemoveFile { path } if not_restored.contains(path.as_path()) => continue,
+            Undo::Restore { path, .. }
+                if first_removal.get(path.as_path()).is_some_and(|&j| j < i) =>
+            {
+                continue
             }
+            _ => {}
         }
         if let Err(e) = undo_one(op) {
             if let Undo::Restore { saved, .. } = op {
