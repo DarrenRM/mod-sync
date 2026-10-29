@@ -11,7 +11,7 @@ use crate::error::{Error, IoCtx, Result};
 
 /// Normalizes a package-relative path to `a/b/c` form. Rejects absolute paths,
 /// drive prefixes, `..`, and `:` anywhere (drives, alternate data streams).
-pub(crate) fn normalize_rel(raw: &str) -> Result<String> {
+pub fn normalize_rel(raw: &str) -> Result<String> {
     let unsafe_path = || Error::UnsafePath(raw.to_string());
     let s = raw.replace('\\', "/");
     if s.starts_with('/') || s.contains(':') || s.contains('\0') {

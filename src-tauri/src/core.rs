@@ -37,6 +37,10 @@ impl Paths {
     pub fn downloads(&self) -> PathBuf {
         self.data.join("downloads")
     }
+    /// One folder per game, so cleaning up one game's old downloads can't touch another's.
+    pub fn game_downloads(&self, id: &str) -> PathBuf {
+        self.downloads().join(id)
+    }
     pub fn work(&self, what: &str, id: &str) -> PathBuf {
         self.data.join("work").join(format!("{what}-{id}"))
     }
@@ -105,7 +109,10 @@ impl Core {
         let paths = Paths { data };
         util::init_log(paths.log());
         let settings = Settings::load(&paths.settings());
-        let catalog = std::fs::read(paths.catalog_cache()).ok().and_then(|b| serde_json::from_slice(&b).ok());
+        let catalog = std::fs::read(paths.catalog_cache())
+            .ok()
+            .and_then(|b| serde_json::from_slice::<Catalog>(&b).ok())
+            .map(Catalog::checked);
         let http = reqwest::Client::builder()
             .user_agent(format!("ModSync/{app_version}"))
             .connect_timeout(Duration::from_secs(10))
@@ -142,7 +149,7 @@ impl Core {
             if !res.status().is_success() {
                 return Err(format!("HTTP {}", res.status()));
             }
-            res.json::<Catalog>().await.map_err(|e| e.to_string())
+            res.json::<Catalog>().await.map(Catalog::checked).map_err(|e| e.to_string())
         }
         .await;
         match result {
@@ -379,7 +386,10 @@ impl Core {
 
     /// Download the package (or reuse a verified copy) and return its path.
     async fn download(&self, id: &str, info: &PackageInfo) -> Result<PathBuf, String> {
-        let dir = self.paths.downloads();
+        if !crate::catalog::is_file_name_safe(&info.version) {
+            return Err(format!("Bad version in the catalog: {:?}", info.version));
+        }
+        let dir = self.paths.game_downloads(id);
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         let file = dir.join(format!("{id}-{}.zip", info.version));
         if file.exists() && engine::sha256_file(&file).map(|h| h.eq_ignore_ascii_case(&info.sha256)).unwrap_or(false) {
@@ -390,9 +400,27 @@ impl Core {
         if !res.status().is_success() {
             return Err(format!("Download failed: HTTP {}", res.status()));
         }
-        let total = res.content_length().unwrap_or(info.size);
         let part = file.with_extension("part");
-        let mut out = std::fs::File::create(&part).map_err(|e| e.to_string())?;
+        let hash = match self.save_stream(id, res, &part, info.size).await {
+            Ok(hash) => hash,
+            Err(e) => {
+                let _ = std::fs::remove_file(&part);
+                return Err(e);
+            }
+        };
+        if !hash.eq_ignore_ascii_case(&info.sha256) {
+            let _ = std::fs::remove_file(&part);
+            return Err("Download was corrupted. Try again.".into());
+        }
+        std::fs::rename(&part, &file).map_err(|e| e.to_string())?;
+        prune_downloads(&self.paths.downloads(), &file);
+        Ok(file)
+    }
+
+    /// Streams a download into `part`, reporting progress, and returns its SHA-256.
+    async fn save_stream(&self, id: &str, res: reqwest::Response, part: &Path, size: u64) -> Result<String, String> {
+        let total = res.content_length().unwrap_or(size);
+        let mut out = std::fs::File::create(part).map_err(|e| e.to_string())?;
         let mut hasher = Sha256::new();
         let mut done = 0u64;
         let mut last = Instant::now();
@@ -408,24 +436,8 @@ impl Core {
                 self.progress(id, "download", done, total);
             }
         }
-        drop(out);
         self.progress(id, "download", total, total);
-        let hash = hex::encode(hasher.finalize());
-        if !hash.eq_ignore_ascii_case(&info.sha256) {
-            let _ = std::fs::remove_file(&part);
-            return Err("Download was corrupted. Try again.".into());
-        }
-        std::fs::rename(&part, &file).map_err(|e| e.to_string())?;
-        // Drop older downloads of this game.
-        if let Ok(rd) = std::fs::read_dir(&dir) {
-            for e in rd.flatten() {
-                let name = e.file_name().to_string_lossy().to_string();
-                if name.starts_with(&format!("{id}-")) && e.path() != file {
-                    let _ = std::fs::remove_file(e.path());
-                }
-            }
-        }
-        Ok(file)
+        Ok(hex::encode(hasher.finalize()))
     }
 
     // ---------- uninstall ----------
@@ -695,6 +707,21 @@ fn recover(paths: &Paths, id: &str) -> Result<(), String> {
     }
 }
 
+/// After a download: drops the game's older downloads (and `.part` leftovers), and loose files
+/// from the flat layout older versions used. Other games' folders are never touched.
+fn prune_downloads(root: &Path, keep: &Path) {
+    let Some(game_dir) = keep.parent() else { return };
+    for dir in [game_dir, root] {
+        let Ok(rd) = std::fs::read_dir(dir) else { continue };
+        for e in rd.flatten() {
+            let p = e.path();
+            if p != keep && p.is_file() {
+                let _ = std::fs::remove_file(p);
+            }
+        }
+    }
+}
+
 /// Steam keeps library art in `appcache/librarycache/<appid>/` (newer clients add a hash subfolder).
 fn steam_cache_art(app_id: u32, name: &str) -> Option<Vec<u8>> {
     let dir = engine::steam::steam_root()?.join("appcache").join("librarycache").join(app_id.to_string());
@@ -739,4 +766,35 @@ fn tail(path: &Path, max: u64) -> Vec<u8> {
     let mut buf = Vec::new();
     let _ = f.read_to_end(&mut buf);
     buf
+}
+
+#[cfg(test)]
+mod tests {
+    use super::prune_downloads;
+    use std::fs;
+
+    #[test]
+    fn prune_downloads_never_touches_a_game_whose_id_shares_a_prefix() {
+        let root = std::env::temp_dir().join(format!("modsync-prune-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let put = |rel: &str| {
+            let p = root.join(rel);
+            fs::create_dir_all(p.parent().unwrap()).unwrap();
+            fs::write(&p, b"x").unwrap();
+            p
+        };
+        let keep = put("vein/vein-0.6.2.zip");
+        put("vein/vein-0.6.1.zip");
+        put("vein/vein-0.6.2.part");
+        let other = put("vein-server/vein-server-1.0.0.zip");
+        put("vein-0.5.0.zip"); // flat layout from older versions
+
+        prune_downloads(&root, &keep);
+
+        assert!(keep.exists());
+        assert!(other.exists());
+        assert_eq!(fs::read_dir(root.join("vein")).unwrap().count(), 1);
+        assert!(!root.join("vein-0.5.0.zip").exists());
+        let _ = fs::remove_dir_all(&root);
+    }
 }

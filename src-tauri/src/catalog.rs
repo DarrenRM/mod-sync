@@ -76,7 +76,33 @@ pub struct PackageInfo {
     pub notes: Vec<String>,
 }
 
+impl Catalog {
+    /// Drops games whose catalog values would be unsafe as file paths (see [`GameEntry::check_paths`]).
+    pub fn checked(mut self) -> Self {
+        self.games.retain(|g| match g.check_paths() {
+            Ok(()) => true,
+            Err(e) => {
+                crate::util::log(format!("catalog: skipping a game: {e}"));
+                false
+            }
+        });
+        self
+    }
+}
+
 impl GameEntry {
+    /// `id` names files and folders in the app's data folder, and `target` is joined onto the game
+    /// folder, so neither may be absolute or climb out with `..`.
+    pub fn check_paths(&self) -> Result<(), String> {
+        if !is_slug(&self.id) {
+            return Err(format!("bad id {:?}", self.id));
+        }
+        if !self.target.is_empty() && modsync_engine::normalize_rel(&self.target).is_err() {
+            return Err(format!("bad target {:?} for {}", self.target, self.id));
+        }
+        Ok(())
+    }
+
     pub fn info(&self) -> Result<PackageInfo, String> {
         serde_json::from_value(self.package.clone()).map_err(|e| format!("Bad catalog entry for {}: {e}", self.id))
     }
@@ -84,6 +110,22 @@ impl GameEntry {
     pub fn spec(&self) -> Result<modsync_engine::PackageSpec, String> {
         serde_json::from_value(self.package.clone()).map_err(|e| format!("Bad package spec for {}: {e}", self.id))
     }
+}
+
+/// A game id: ASCII letters, digits, `-` and `_`, starting with a letter or digit.
+fn is_slug(s: &str) -> bool {
+    s.len() <= 64
+        && s.starts_with(|c: char| c.is_ascii_alphanumeric())
+        && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+/// A catalog value used inside a file name (a package version): ASCII letters, digits, `.`, `-`,
+/// `_` and `+`, not starting with `.`.
+pub fn is_file_name_safe(s: &str) -> bool {
+    s.len() <= 64
+        && !s.is_empty()
+        && !s.starts_with('.')
+        && s.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | '+'))
 }
 
 /// Resolve a package URL relative to the catalog base.
@@ -97,7 +139,34 @@ pub fn resolve_url(base: &str, url: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::ModInfo;
+    use super::{is_file_name_safe, Catalog, ModInfo};
+
+    #[test]
+    fn catalog_values_that_become_paths_are_checked() {
+        let game = |id: &str, target: &str| {
+            serde_json::json!({ "id": id, "name": id, "steamAppId": 1, "target": target, "package": {} })
+        };
+        let cat: Catalog = serde_json::from_value(serde_json::json!({
+            "schema": 1,
+            "games": [
+                game("vein", "Vein/Binaries/Win64"),
+                game("vein-server", ""),
+                game("../escape", "Vein"),
+                game("abs", "C:/Windows"),
+                game("rooted", "/Windows"),
+                game("climb", "Vein/../../.."),
+                game("unc", "\\\\server\\share"),
+            ]
+        }))
+        .unwrap();
+        let ids: Vec<_> = cat.checked().games.into_iter().map(|g| g.id).collect();
+        assert_eq!(ids, ["vein", "vein-server"]);
+
+        assert!(is_file_name_safe("0.5.0-r1"));
+        assert!(!is_file_name_safe("../0.5.0"));
+        assert!(!is_file_name_safe("0.5.0\\..\\x"));
+        assert!(!is_file_name_safe(""));
+    }
 
     #[test]
     fn support_flag_reaches_the_ui_only_when_set() {

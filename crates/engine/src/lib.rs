@@ -18,7 +18,7 @@ mod types;
 
 pub use archive::extract_zip;
 pub use error::{Error, Result, UninstallError};
-pub use fsx::sha256_file;
+pub use fsx::{normalize_rel, sha256_file};
 pub use install::{apply, uninstall, verify, VerifyReport};
 pub use journal::recover;
 pub use process::running_processes;
