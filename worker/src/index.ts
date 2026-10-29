@@ -8,13 +8,33 @@ export interface Env {
 }
 
 const MAX_REPORT = 10 * 1024 * 1024;
+// KV allows 1024 bytes of metadata per key; the note gets most of it, the rest stays well under.
+const MAX_NOTE_BYTES = 300;
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
 
-function authorized(req: Request, env: Env) {
-  const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  return !!env.ADMIN_TOKEN && token === env.ADMIN_TOKEN;
+async function authorized(req: Request, env: Env) {
+  if (!env.ADMIN_TOKEN) return false;
+  const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+  // Compare fixed-length digests in constant time, so response timing reveals nothing about the token.
+  const [a, b] = await Promise.all(
+    [token, env.ADMIN_TOKEN].map((s) => crypto.subtle.digest("SHA-256", new TextEncoder().encode(s))),
+  );
+  return crypto.subtle.timingSafeEqual(a, b);
+}
+
+/** The longest prefix of `s` that fits in `max` UTF-8 bytes, without splitting a character. */
+function clipUtf8(s: string, max: number) {
+  let bytes = 0;
+  let end = 0;
+  for (const ch of s) {
+    const cp = ch.codePointAt(0)!;
+    bytes += cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+    if (bytes > max) break;
+    end += ch.length;
+  }
+  return s.slice(0, end);
 }
 
 export default {
@@ -24,14 +44,21 @@ export default {
     if (url.pathname === "/reports" && req.method === "POST") {
       const size = Number(req.headers.get("content-length") ?? 0);
       if (size > MAX_REPORT) return json({ error: "too large" }, 413);
+      // The app percent-encodes the note; a malformed one is the sender's mistake, not a server error.
+      let note: string;
+      try {
+        note = decodeURIComponent(req.headers.get("x-note") ?? "");
+      } catch {
+        return json({ error: "bad x-note" }, 400);
+      }
       const body = await req.arrayBuffer();
       if (body.byteLength === 0 || body.byteLength > MAX_REPORT) return json({ error: "bad size" }, 400);
       const game = (req.headers.get("x-game") ?? "app").replace(/[^a-z0-9_-]/gi, "").slice(0, 32) || "app";
       const id = `${new Date().toISOString().replace(/[:.]/g, "-")}-${game}-${crypto.randomUUID().slice(0, 8)}`;
       const metadata = {
         game,
-        app: (req.headers.get("x-app-version") ?? "").slice(0, 32),
-        note: decodeURIComponent(req.headers.get("x-note") ?? "").slice(0, 500),
+        app: clipUtf8(req.headers.get("x-app-version") ?? "", 32),
+        note: clipUtf8(note, MAX_NOTE_BYTES),
         size: body.byteLength,
         country: (req as any).cf?.country ?? "",
       };
@@ -41,7 +68,7 @@ export default {
     }
 
     if (url.pathname.startsWith("/admin/")) {
-      if (!authorized(req, env)) return json({ error: "unauthorized" }, 401);
+      if (!(await authorized(req, env))) return json({ error: "unauthorized" }, 401);
       if (url.pathname === "/admin/reports") {
         const list = await env.REPORTS.list({ prefix: "r/", cursor: url.searchParams.get("cursor") ?? undefined });
         return json({

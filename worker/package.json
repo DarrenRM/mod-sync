@@ -1,17 +1,16 @@
 {
-  "name": "worker",
-  "version": "1.0.0",
-  "main": "index.js",
+  "name": "mod-sync-worker",
+  "private": true,
+  "description": "Mod Sync's Cloudflare Worker: serves the catalog, packages and app updates, and takes bug reports",
+  "license": "MIT",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy -c wrangler.local.jsonc",
+    "typecheck": "tsc --noEmit"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261026.1",
-    "fflate": "^0.8.3",
+    "typescript": "^5.9.3",
     "wrangler": "^4.153.0"
   }
 }
