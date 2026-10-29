@@ -25,7 +25,7 @@ Builds reach the group from a private Cloudflare Worker, so there is no public d
 ## What's interesting
 
 - **Uninstall replays a record.** Every install writes down each file it wrote (with its SHA-256 and a backup of anything it replaced), each directory it created, and each line it edited in a shared file along with the line it replaced. Uninstall plays that record backwards. The end-to-end run requires the game folder to come back byte-identical, apart from a config file it adds as the player, which uninstall keeps on purpose.
-- **A write-ahead undo log.** The engine logs each step, and flushes it to disk, before it touches the game folder. A failed sync rolls back. A sync cut short by a crash or a power cut is rolled back from its log when the app next starts, or before the next sync or uninstall of that game. The install record is written inside the same transaction, so the record and the folder always agree.
+- **A write-ahead undo log.** The engine logs each step, and flushes it to disk, before it touches the game folder. A failed sync rolls back. A sync cut short by a crash or a power cut is rolled back from its log when the app next starts, or before the next sync or uninstall of that game. The install record is written inside the same transaction, which commits by logging a final marker, so a finished sync is never rolled back. Once a sync or its rollback completes, the record matches the files Mod Sync has in place. A rollback blocked by a file the game holds open keeps its log and the original's backup, and retries.
 - **Shared files are edited, not owned.** Enabling a mod is a line edit to the loader's `mods.txt`, reversed exactly, trailing newline included. `preserve` globs keep a player's own config files through updates and uninstall. `ownedDirs` are swept on uninstall only when Mod Sync created them.
 - **Packages are reproducible and verified.** Zips are built with sorted entries and fixed timestamps, so the same files give the same SHA-256. The app checks the hash before installing, and the publish tool refuses to reuse a version number for different contents.
 - **Updates respect the game.** The app checks the catalog on launch and every 30 minutes, and updates a game's mods only while that game is not running. The app updates itself through Tauri's signed updater.
@@ -88,7 +88,7 @@ Kept out of the repo: `.keys/updater.key` (update signing), `.keys/admin-token` 
 
 ## Status
 
-Released to the group in October 2026; the app is at 0.3.0. Built with Tauri 2, Rust, Svelte 5 and Cloudflare Workers. 57 Rust tests, 53 of them on the install engine, plus end-to-end scripts that drive the real app against a fake Steam library.
+Released to the group in October 2026; the app is at 0.3.0. Built with Tauri 2, Rust, Svelte 5 and Cloudflare Workers. 62 Rust tests, 58 of them on the install engine, plus end-to-end scripts that drive the real app against a fake Steam library.
 
 ## How it was built
 

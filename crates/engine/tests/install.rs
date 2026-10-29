@@ -735,6 +735,132 @@ fn rollback_when_record_cannot_be_written() {
     assert!(!env.work.join("undo.jsonl").exists());
 }
 
+/// The game ran between the crash and recovery, and its loader wrote a log
+/// into a folder the interrupted sync created. Recovery must still finish.
+#[test]
+fn recovery_leaves_a_created_folder_something_else_wrote_into() {
+    let env = Env::new();
+    seed_game(&env);
+    let mut expected = env.game_snap();
+    crash_mid_apply(&env, &env.stage(V1), &spec("1", &[], &[], vec![]));
+    write(&env.game, "ue4ss/UE4SS.log", b"loader log");
+
+    assert!(recover(&env.work).unwrap());
+    // Everything the sync wrote is gone; the folder stays for the game's file.
+    expected.insert("ue4ss".into(), None);
+    expected.insert("ue4ss/UE4SS.log".into(), Some(b"loader log".to_vec()));
+    assert_same(&expected, &env.game_snap());
+    assert!(env.backup_snap().is_empty());
+    assert!(!recover(&env.work).unwrap());
+}
+
+/// A recovery cut short after it put dwmapi.dll back and deleted its backup,
+/// but before it deleted the log. The next pass finishes the job.
+#[test]
+fn recovery_finishes_after_an_interrupted_recovery() {
+    let env = Env::new();
+    seed_game(&env);
+    let before = env.game_snap();
+    crash_mid_apply(&env, &env.stage(V1), &spec("1", &[], &[], vec![]));
+    fs::copy(env.backups.join("dwmapi.dll"), env.game.join("dwmapi.dll")).unwrap();
+    fs::remove_file(env.backups.join("dwmapi.dll")).unwrap();
+
+    assert!(recover(&env.work).unwrap());
+    assert_same(&before, &env.game_snap());
+    assert!(env.backup_snap().is_empty());
+    assert!(!recover(&env.work).unwrap());
+}
+
+/// The replaced DLL is held open during recovery (the game started first).
+/// The original's backup must survive the failed restore, so the next pass
+/// can put it back.
+#[cfg(windows)]
+#[test]
+fn recovery_keeps_a_backup_until_it_is_restored() {
+    let env = Env::new();
+    seed_game(&env);
+    let before = env.game_snap();
+    crash_mid_apply(&env, &env.stage(V1), &spec("1", &[], &[], vec![]));
+
+    let lock_handle = lock(&env.game.join("dwmapi.dll"));
+    assert!(recover(&env.work).is_err());
+    drop(lock_handle);
+    assert_eq!(read(&env.backups, "dwmapi.dll"), b"original dwmapi");
+    assert!(env.work.join("undo.jsonl").exists());
+
+    assert!(recover(&env.work).unwrap());
+    assert_same(&before, &env.game_snap());
+    assert!(env.backup_snap().is_empty());
+}
+
+/// Another program (antivirus, an indexer) holds the undo log open without
+/// delete sharing as the update commits, so the log outlives the commit.
+/// Recovery must keep the update, not roll it back.
+#[cfg(windows)]
+#[test]
+fn recovery_keeps_a_committed_update_whose_log_was_left_behind() {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_SHARE_READ_WRITE: u32 = 1 | 2;
+    let (env, _before, r1) = v2_scenario();
+    let log = env.work.join("undo.jsonl");
+    let mut holder = None;
+    let r2 = modsync_engine::apply(
+        &env.game,
+        &env.stage(V2),
+        &v2_spec(),
+        "vein",
+        Some(&r1),
+        &env.backups,
+        &env.work,
+        &env.record,
+        &mut |done, total| {
+            if done == total && total > 0 && holder.is_none() {
+                let h = fs::OpenOptions::new()
+                    .read(true)
+                    .share_mode(FILE_SHARE_READ_WRITE)
+                    .open(&log)
+                    .unwrap();
+                holder = Some(h);
+            }
+        },
+    )
+    .unwrap();
+    drop(holder);
+    assert!(log.exists(), "the held log outlives the commit");
+    assert!(
+        env.work.join("saved").exists(),
+        "its saved copies stay with it"
+    );
+    let updated = env.game_snap();
+
+    assert!(!recover(&env.work).unwrap());
+    assert_same(&updated, &env.game_snap());
+    assert_eq!(env.saved_record().as_ref(), Some(&r2));
+    assert!(!log.exists());
+    assert!(!env.work.join("saved").exists());
+}
+
+/// A power cut mid-write of a line whose path isn't ASCII can tear the line
+/// inside a character. It is skipped like any torn line.
+#[test]
+fn recovery_skips_a_torn_line_cut_mid_character() {
+    use std::io::Write;
+    let env = Env::new();
+    seed_game(&env);
+    let before = env.game_snap();
+    crash_mid_apply(&env, &env.stage(V1), &spec("1", &[], &[], vec![]));
+    let mut log = fs::OpenOptions::new()
+        .append(true)
+        .open(env.work.join("undo.jsonl"))
+        .unwrap();
+    log.write_all(b"{\"op\":\"removeFile\",\"path\":\"caf\xC3")
+        .unwrap();
+    drop(log);
+
+    assert!(recover(&env.work).unwrap());
+    assert_same(&before, &env.game_snap());
+}
+
 #[test]
 fn apply_rejects_bad_inputs() {
     let env = Env::new();

@@ -171,9 +171,10 @@ impl Tx<'_> {
         fsx::install_file(src, dest, &tmp)
     }
 
-    /// Writes the install record as the transaction's last step. A rollback
-    /// (or [`crate::recover`] after a crash) puts the previous record back
-    /// along with the files, so the record and the game folder always agree.
+    /// Writes the install record as the transaction's last step before the
+    /// commit. A rollback (or [`crate::recover`] after a crash) puts the
+    /// previous record back along with the files, so the record always lists
+    /// what Mod Sync has in place.
     fn write_record(&mut self, path: &Path, record: &InstallRecord) -> Result<()> {
         if let Some(dir) = path.parent() {
             // App data, not the game folder: an empty folder left by a rollback is harmless.
@@ -351,13 +352,14 @@ pub fn apply(
                 preserve: spec.preserve.clone(),
             };
             tx.write_record(record_path, &record)?;
+            tx.j.commit()?;
             Ok((record, used_backups))
         },
     );
     let Tx { j, .. } = tx;
     match result {
         Ok((record, used_backups)) => {
-            j.commit();
+            j.finish();
             for b in used_backups {
                 delete_backup(backup_root, &b);
             }
